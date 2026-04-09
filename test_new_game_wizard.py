@@ -17,7 +17,11 @@ def test_imports():
         from core.save_manager import SaveManager
         print("  ✓ SaveManager imported")
         
-        from ui.new_game_page import NewGameView, MapSelectionView, GameplaySettingsView, ModLoadoutView
+        from ui.new_game_page import NewGameView
+        from ui.map_select_page import MapSelectionView
+        from ui.settings_select_page import GameplaySettingsView
+        from ui.mod_select_page import ModLoadoutView
+        from ui.success_message_page import SuccessMessageView
         print("  ✓ All UI views imported")
         
         return True

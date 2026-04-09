@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import zipfile
 import xml.etree.ElementTree as ET
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -22,20 +23,62 @@ class ModInfo:
     icon_data: Optional[bytes] = None
     size_bytes: int = 0
     category: str = "Mod"
+    id: str = ""  # Unique ID based on filename hash
 
 
 class ModManager:
     def __init__(self, mods_path: str):
         self.mods_path = mods_path
         self.disabled_path = mods_path + "_disabled"
+        self.thumbnails_path = mods_path + "_thumbnails"
+        self.ensure_dirs()
 
     def ensure_dirs(self):
         os.makedirs(self.mods_path, exist_ok=True)
         os.makedirs(self.disabled_path, exist_ok=True)
+        os.makedirs(self.thumbnails_path, exist_ok=True)
+
+    def get_thumbnail_path(self, mod_id: str) -> str:
+        """Get the file path for a mod's thumbnail."""
+        return os.path.join(self.thumbnails_path, f"{mod_id}.png")
+
+    def save_thumbnail(self, mod_id: str, icon_data: bytes) -> bool:
+        """Save thumbnail data for a mod."""
+        try:
+            thumb_path = self.get_thumbnail_path(mod_id)
+            with open(thumb_path, 'wb') as f:
+                f.write(icon_data)
+            return True
+        except Exception:
+            return False
+
+    def load_thumbnail(self, mod_id: str) -> Optional[bytes]:
+        """Load thumbnail data for a mod."""
+        try:
+            thumb_path = self.get_thumbnail_path(mod_id)
+            if os.path.exists(thumb_path):
+                with open(thumb_path, 'rb') as f:
+                    return f.read()
+        except Exception:
+            pass
+        return None
+
+    def cleanup_thumbnails(self, active_mod_ids: set[str]):
+        """Remove thumbnails for mods that no longer exist."""
+        try:
+            for filename in os.listdir(self.thumbnails_path):
+                if filename.endswith('.png'):
+                    mod_id = filename[:-4]  # Remove .png extension
+                    if mod_id not in active_mod_ids:
+                        os.remove(os.path.join(self.thumbnails_path, filename))
+        except Exception:
+            pass
 
     def get_mods(self) -> list[ModInfo]:
         self.ensure_dirs()
         mods: list[ModInfo] = []
+        active_mod_ids = set()
+        
         for item in Path(self.mods_path).iterdir():
             if item.name.startswith("."):
                 continue
@@ -43,6 +86,8 @@ class ModManager:
                 mod = self._parse_mod(str(item), is_enabled=True)
                 if mod:
                     mods.append(mod)
+                    active_mod_ids.add(mod.id)
+                    
         disabled = Path(self.disabled_path)
         if disabled.exists():
             for item in disabled.iterdir():
@@ -52,6 +97,11 @@ class ModManager:
                     mod = self._parse_mod(str(item), is_enabled=False)
                     if mod:
                         mods.append(mod)
+                        active_mod_ids.add(mod.id)
+        
+        # Clean up thumbnails for removed mods
+        self.cleanup_thumbnails(active_mod_ids)
+        
         return sorted(mods, key=lambda m: (m.title or m.name).lower())
 
     def _parse_mod(self, filepath: str, is_enabled: bool) -> Optional[ModInfo]:
@@ -61,6 +111,10 @@ class ModManager:
             size = path.stat().st_size
         except Exception:
             size = 0
+        
+        # Generate unique ID based on filename
+        mod_id = hashlib.md5(path.name.encode('utf-8')).hexdigest()[:16]
+        
         mod = ModInfo(
             name=path.stem,
             filename=path.name,
@@ -69,7 +123,14 @@ class ModManager:
             is_zip=is_zip,
             title=path.stem,
             size_bytes=size,
+            id=mod_id,
         )
+        
+        # Try to load existing thumbnail first
+        existing_thumb = self.load_thumbnail(mod_id)
+        if existing_thumb:
+            mod.icon_data = existing_thumb
+        
         try:
             store_xml_path = None
             if is_zip:
@@ -88,7 +149,11 @@ class ModManager:
                     ]
                     if icon_names:
                         try:
-                            mod.icon_data = zf.read(icon_names[0])
+                            icon_bytes = zf.read(icon_names[0])
+                            mod.icon_data = icon_bytes
+                            # Save thumbnail if we don't have one or if it's different
+                            if not existing_thumb or existing_thumb != icon_bytes:
+                                self.save_thumbnail(mod_id, icon_bytes)
                         except Exception:
                             pass
             else:
@@ -105,7 +170,11 @@ class ModManager:
                     icon_path = path / icon_name
                     if icon_path.exists():
                         try:
-                            mod.icon_data = icon_path.read_bytes()
+                            icon_bytes = icon_path.read_bytes()
+                            mod.icon_data = icon_bytes
+                            # Save thumbnail if we don't have one or if it's different
+                            if not existing_thumb or existing_thumb != icon_bytes:
+                                self.save_thumbnail(mod_id, icon_bytes)
                         except Exception:
                             pass
                         break

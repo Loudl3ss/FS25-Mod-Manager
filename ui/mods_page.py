@@ -230,7 +230,7 @@ class ModsPage(QWidget):
 
         visible = self._filtered_mods()
         for mod in visible:
-            is_fav = self._favorites.is_favorite(mod.filename)
+            is_fav = self._favorites.is_favorite(mod.id)
             if is_fav:
                 continue  # Skip favorited for the main grid
             
@@ -247,12 +247,12 @@ class ModsPage(QWidget):
                     except Exception:
                         pass
                         
-            card = self._grid_view.add_mod(mod.filename, thumbnail, mod.title or mod.name, mod.version, False, mod.category)
+            card = self._grid_view.add_mod(mod.id, thumbnail, mod.title or mod.name, mod.version, False, mod.category)
             card.modClicked.connect(self._on_mod_clicked)
             card.favoriteToggled.connect(self._on_favorite_toggled)
 
         # Favorites grid (shows favorites regardless of filter)
-        favorite_mods = [mod for mod in self._mods if self._favorites.is_favorite(mod.filename)]
+        favorite_mods = [mod for mod in self._mods if self._favorites.is_favorite(mod.id)]
         for mod in favorite_mods:
             thumbnail = QPixmap()
             if mod.icon_data:
@@ -267,13 +267,13 @@ class ModsPage(QWidget):
                     except Exception:
                         pass
                         
-            card = self._favorite_grid.add_mod(mod.filename, thumbnail, mod.title or mod.name, mod.version, True, mod.category)
+            card = self._favorite_grid.add_mod(mod.id, thumbnail, mod.title or mod.name, mod.version, True, mod.category)
             card.modClicked.connect(self._on_mod_clicked)
             card.favoriteToggled.connect(self._on_favorite_toggled)
 
     def _on_mod_clicked(self, mod_id: str):
         for mod in self._filtered_mods():
-            if mod.filename == mod_id:
+            if mod.id == mod_id:
                 self._select_card(None, mod)
                 break
 
@@ -282,7 +282,7 @@ class ModsPage(QWidget):
         state = getattr(self, "_filter_state", "All mods")
         
         if state == "Favorites":
-            result = [m for m in result if self._favorites.is_favorite(m.filename)]
+            result = [m for m in result if self._favorites.is_favorite(m.id)]
         elif state != "All mods":
             result = [m for m in result if m.category == state]
 

@@ -1,4 +1,4 @@
-"""Reusable custom widgets for FS25 Manager."""
+"""Reusable widgets for FS25 Manager."""
 from __future__ import annotations
 
 from PyQt6.QtCore import (

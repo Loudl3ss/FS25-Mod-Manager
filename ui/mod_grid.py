@@ -26,13 +26,20 @@ class ClippedThumbnail(QLabel):
             
             painter.setClipPath(path)
             
-            # Scaled pixmap following setScaledContents behavior
+            # Scaled pixmap keeping aspect ratio by expanding
             scaled_pixmap = self.pixmap().scaled(
                 self.size(), 
-                Qt.AspectRatioMode.IgnoreAspectRatio, 
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding, 
                 Qt.TransformationMode.SmoothTransformation
             )
-            painter.drawPixmap(draw_rect.toRect(), scaled_pixmap)
+            
+            # Center the pixmap in the draw rect
+            rect = draw_rect.toRect()
+            pix_rect = scaled_pixmap.rect()
+            x = rect.x() + (rect.width() - pix_rect.width()) // 2
+            y = rect.y() + (rect.height() - pix_rect.height()) // 2
+            
+            painter.drawPixmap(x, y, scaled_pixmap)
             painter.end()
         else:
             super().paintEvent(event)
@@ -89,10 +96,14 @@ class ModCard(QFrame):
         self.thumbnail_lbl.setStyleSheet(
             "background-color: transparent; border: none;"
         )
-        if not thumbnail.isNull():
+        if not thumbnail.isNull() and not thumbnail.size().isEmpty():
             self.thumbnail_lbl.setPixmap(thumbnail)
         else:
-            self.thumbnail_lbl.setText("🌾")
+            # Show default icon based on category
+            if category.lower() == "map":
+                self.thumbnail_lbl.setText("🗺️")
+            else:
+                self.thumbnail_lbl.setText("🌾")
             self.thumbnail_lbl.setStyleSheet(self.thumbnail_lbl.styleSheet() + "font-size: 64px;")
             self.thumbnail_lbl.setScaledContents(False)
 

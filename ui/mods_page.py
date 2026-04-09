@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.mod_manager import ModInfo, ModManager
+from ui.favorite_grid import FavoriteModGrid
 from ui.mod_grid import ModCard, ResponsiveModGrid
 from ui.widgets import Badge, HSeparator, StatCard
 
@@ -159,8 +160,7 @@ class ModsPage(QWidget):
         fav_header.setContentsMargins(8, 12, 8, 6)
         left_lay.addWidget(fav_header)
 
-        self._favorite_grid = ResponsiveModGrid()
-        self._favorite_grid.setFixedHeight(210)
+        self._favorite_grid = FavoriteModGrid()
         left_lay.addWidget(self._favorite_grid)
 
         left_lay.addWidget(HSeparator())

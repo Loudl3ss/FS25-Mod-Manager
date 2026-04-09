@@ -83,6 +83,9 @@ class ModCard(QFrame):
         self.thumbnail_lbl.setFixedSize(150, 140)
         self.thumbnail_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.thumbnail_lbl.setScaledContents(True)
+        if self._is_favorite:
+            self.thumbnail_lbl.setScaledContents(False)
+            self.thumbnail_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         self.thumbnail_lbl.setStyleSheet(
             "background-color: transparent; border: none;"
         )

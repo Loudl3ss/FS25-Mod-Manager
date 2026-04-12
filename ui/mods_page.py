@@ -1,7 +1,7 @@
 """Mods management page."""
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, QSize, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 
 from core.mod_manager import ModInfo, ModManager
 from core.thumbnail_loader import ThumbnailLoader
+from ui.assets import Icons
 from ui.favorite_grid import FavoriteModGrid
 from ui.mod_grid import ModCard, ResponsiveModGrid
 from ui.widgets import Badge, HSeparator, StatCard
@@ -44,6 +45,7 @@ class ModLoaderThread(QThread):
 # ─────────────────────────────────────────────────────────────────────────────
 class ModsPage(QWidget):
     favorite_changed = pyqtSignal(str, bool)
+    request_new_game = pyqtSignal()
     _MAJOR_GROUPS = ["Maps", "Placeables", "Transport", "Equipment", "Scripts"]
     _GROUP_CATEGORY_MAP = {
         "Maps": {"Map"},
@@ -53,10 +55,12 @@ class ModsPage(QWidget):
         "Scripts": {"Script", "Mod"},
     }
 
-    def __init__(self, manager: ModManager, favorites, parent=None):
+    def __init__(self, manager: ModManager, favorites, parent=None, show_new_game_button: bool = False):
         super().__init__(parent)
         self._manager = manager
         self._favorites = favorites
+        self._show_new_game_button = show_new_game_button
+        self._new_game_emit_locked = False
         self._mods: list[ModInfo] = []
         self._selected_card = None
         self._filter_text = ""
@@ -86,10 +90,22 @@ class ModsPage(QWidget):
 
         hdr.addLayout(title_col, stretch=1)
 
-        btn_refresh = QPushButton("🔄 Rescan for Mod")
+        btn_refresh = QPushButton("Rescan for Mod")
         btn_refresh.setObjectName("ToolBtn")
+        btn_refresh.setIcon(Icons.get_qicon(Icons.RESCAN))
+        btn_refresh.setIconSize(QSize(18, 18))
+        btn_refresh.setFixedSize(140, 36)
         btn_refresh.clicked.connect(self._load_mods)
         hdr.addWidget(btn_refresh)
+
+        if self._show_new_game_button:
+            btn_new_game = QPushButton("New Game")
+            btn_new_game.setObjectName("PrimaryBtn")
+            btn_new_game.setIcon(Icons.get_qicon(Icons.PLUS))
+            btn_new_game.setIconSize(QSize(18, 18))
+            btn_new_game.setFixedSize(140, 36)
+            btn_new_game.clicked.connect(self._emit_new_game_once)
+            hdr.addWidget(btn_new_game)
 
         root.addLayout(hdr)
 
@@ -191,10 +207,22 @@ class ModsPage(QWidget):
 
         # Right: detail panel
         self._detail_panel = DetailPanel()
+        self._detail_panel.delete_requested.connect(self._delete_mod)
         splitter.addWidget(self._detail_panel)
 
         splitter.setSizes([520, 320])
         root.addWidget(splitter, stretch=1)
+
+    def _emit_new_game_once(self):
+        """Prevent accidental duplicate New Game opens from repeated clicks/signals."""
+        if self._new_game_emit_locked:
+            return
+        self._new_game_emit_locked = True
+        self.request_new_game.emit()
+        QTimer.singleShot(250, self._unlock_new_game_emit)
+
+    def _unlock_new_game_emit(self):
+        self._new_game_emit_locked = False
 
     # ── Load ──────────────────────────────────────────────────────────────────
     def _load_mods(self):
@@ -225,9 +253,10 @@ class ModsPage(QWidget):
         self._filter_combo.blockSignals(False)
 
     def update_dashboard_stats(self):
-        stats = self._manager.stats()
-        self._stat_installed.set_value(str(stats["total"]))
+        # Installed: count all loaded mods (including maps), independent of filters.
+        self._stat_installed.set_value(str(len(self._mods)))
         
+        # Favourited: count favorites across all loaded mods/maps.
         # Prefer stable mod IDs; fallback to filename for legacy favorites data.
         fav_count = sum(
             1
@@ -236,10 +265,12 @@ class ModsPage(QWidget):
             or self._favorites.is_favorite(getattr(m, "filename", ""))
         )
         self._stat_favorites.set_value(str(fav_count))
-        
-        map_count = sum(1 for card in self._grid_view._cards if hasattr(card, "category") and card.category == "Map")
+
+        # Maps: count all map mods regardless of favorites/filter/view.
+        map_count = sum(1 for m in self._mods if getattr(m, "category", "") == "Map")
         self._stat_maps.set_value(str(map_count))
-        
+
+        stats = self._manager.stats()
         size_gb = stats['size_mb'] / 1024.0
         self._stat_size.set_value(f"{size_gb:.1f} GB")
 
@@ -342,6 +373,7 @@ class ModsPage(QWidget):
         )
         if reply == QMessageBox.StandardButton.Yes:
             if self._manager.delete_mod(mod):
+                self._favorites.set_favorite(mod.id, False)
                 self._load_mods()
             else:
                 QMessageBox.warning(self, "Error", "Failed to delete mod.")
@@ -366,6 +398,8 @@ class ModsPage(QWidget):
 # DetailPanel
 # ─────────────────────────────────────────────────────────────────────────────
 class DetailPanel(QWidget):
+    delete_requested = pyqtSignal(object)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumWidth(220)
@@ -404,6 +438,36 @@ class DetailPanel(QWidget):
         self._desc_lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         lay.addWidget(self._desc_lbl, stretch=1)
 
+        self._delete_btn = QPushButton("DELETE")
+        self._delete_btn.setObjectName("DetailDeleteBtn")
+        self._delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._delete_btn.setFixedSize(140, 36)
+        self._delete_btn.setStyleSheet("""
+            QPushButton#DetailDeleteBtn {
+                background-color: transparent;
+                color: #ef4444;
+                border: 2px solid #ef4444;
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: 700;
+                letter-spacing: 0.5px;
+                padding: 2px 12px;
+            }
+            QPushButton#DetailDeleteBtn:hover {
+                background-color: #ef4444;
+                color: #ffffff;
+                border: 2px solid #ef4444;
+            }
+            QPushButton#DetailDeleteBtn:pressed {
+                background-color: #dc2626;
+                color: #ffffff;
+                border: 2px solid #dc2626;
+            }
+        """)
+        self._delete_btn.clicked.connect(self._on_delete_clicked)
+        self._delete_btn.hide()
+        lay.addWidget(self._delete_btn, alignment=Qt.AlignmentFlag.AlignHCenter)
+
         self.clear()
 
     def clear(self):
@@ -412,9 +476,11 @@ class DetailPanel(QWidget):
         self._meta_lbl.setText("")
         self._desc_lbl.setText("Click on a mod in the list\nto view details here.")
         self._current_mod = None
+        self._delete_btn.hide()
 
     def show_mod(self, mod: ModInfo):
         self._current_mod = mod
+        self._delete_btn.show()
         # icon
         pix = ThumbnailLoader.obtain_local_pixmap(
             mod.icon_data,
@@ -445,3 +511,9 @@ class DetailPanel(QWidget):
         self._desc_lbl.setText(
             mod.description or "No description available."
         )
+
+    def _on_delete_clicked(self):
+        if self._current_mod is None:
+            QMessageBox.information(self, "Delete Mod", "Select a mod first.")
+            return
+        self.delete_requested.emit(self._current_mod)

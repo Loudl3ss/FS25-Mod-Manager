@@ -17,8 +17,8 @@ QMainWindow {
 #Sidebar {
     background-color: #0f172a;
     border-right: 1px solid #1e293b;
-    min-width: 200px;
-    max-width: 200px;
+    min-width: 215px;
+    max-width: 215px;
 }
 
 #SidebarLogo {
@@ -37,6 +37,15 @@ QMainWindow {
     text-transform: uppercase;
 }
 
+QLabel#SidebarSection {
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 12px 0 4px 32px;
+}
+
 QPushButton#NavBtn {
     background-color: transparent;
     border: none;
@@ -46,7 +55,7 @@ QPushButton#NavBtn {
     padding-left: 12px;
     font-size: 13px;
     color: #94a3b8;
-    margin: 2px 8px;
+    margin: 2px 18px 2px 8px;
 }
 
 QPushButton#NavBtn:hover {
@@ -58,6 +67,10 @@ QPushButton#NavBtn[active="true"] {
     background-color: #14532d;
     color: #4ade80;
     font-weight: 600;
+}
+
+QPushButton#NavBtn[active="false"] {
+    margin: 2px 28px 2px 8px;
 }
 
 /* ── Content Area ────────────────────────────────────── */
@@ -79,16 +92,15 @@ QPushButton#NavBtn[active="true"] {
 
 /* ── Stat Cards ─────────────────────────────────────── */
 #card_installed, #card_favourited, #card_maps, #card_disk, #card_saves, #card_backups {
-    background-color: #1a1a1a;
     border-radius: 10px;
 }
 
-#card_installed { border-bottom: 4px solid #4CAF50; }
-#card_favourited { border-bottom: 4px solid #FFC107; }
-#card_maps { border-bottom: 4px solid #2196F3; }
-#card_disk { border-bottom: 4px solid #9C27B0; }
-#card_saves { border-bottom: 4px solid #4CAF50; }
-#card_backups { border-bottom: 4px solid #2196F3; }
+#card_installed { background-color: rgba(76, 175, 80, 0.15); border-bottom: 4px solid #4CAF50; }
+#card_favourited { background-color: rgba(255, 193, 7, 0.15); border-bottom: 4px solid #FFC107; }
+#card_maps { background-color: rgba(33, 150, 243, 0.15); border-bottom: 4px solid #2196F3; }
+#card_disk { background-color: rgba(156, 39, 176, 0.15); border-bottom: 4px solid #9C27B0; }
+#card_saves { background-color: rgba(76, 175, 80, 0.15); border-bottom: 4px solid #4CAF50; }
+#card_backups { background-color: rgba(33, 150, 243, 0.15); border-bottom: 4px solid #2196F3; }
 
 #card_installed #StatValue, #card_installed #StatIcon { color: #4CAF50; font-weight: bold; font-size: 18pt; border: none; background: transparent; }
 #card_favourited #StatValue, #card_favourited #StatIcon { color: #FFC107; font-weight: bold; font-size: 18pt; border: none; background: transparent; }
@@ -259,6 +271,57 @@ QPushButton#CollapsibleHeader {
 QPushButton#CollapsibleHeader:hover {
     background-color: #1e293b;
     border-color: #4ade80;
+}
+
+/* ── New Game Wizard Top Nav ─────────────────────────── */
+QWidget#WizardTopNav {
+    background-color: #050d10;
+    border-bottom: 1px solid #1f2d33;
+}
+
+QLabel#WizardStepLabel {
+    color: #7f98a0;
+    font-size: 22px;
+    font-weight: 500;
+}
+
+QPushButton#WizardNavSecondaryBtn {
+    background-color: transparent;
+    border: 1px solid #2c3b41;
+    border-radius: 10px;
+    color: #d5dee2;
+    font-weight: 600;
+    padding: 8px 18px;
+    min-width: 92px;
+}
+
+QPushButton#WizardNavSecondaryBtn:hover {
+    background-color: #0f1b20;
+    border-color: #3f525a;
+}
+
+QPushButton#WizardNavSecondaryBtn:disabled {
+    color: #6b7e85;
+    border-color: #1e2a2f;
+}
+
+QPushButton#WizardNavPrimaryBtn {
+    background-color: #5fb428;
+    border: 1px solid #8ad45f;
+    border-radius: 10px;
+    color: #ffffff;
+    font-weight: 700;
+    padding: 8px 18px;
+    min-width: 92px;
+}
+
+QPushButton#WizardNavPrimaryBtn:hover {
+    background-color: #4ea11e;
+    border-color: #98dd72;
+}
+
+QPushButton#WizardNavPrimaryBtn:pressed {
+    background-color: #418a1a;
 }
 
 /* ── Scrollbar ───────────────────────────────────────── */

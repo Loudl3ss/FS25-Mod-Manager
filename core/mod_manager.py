@@ -235,7 +235,7 @@ class ModManager:
                     icon_names = [
                         name
                         for name in archive.namelist()
-                        if "icon" in name.lower() and name.lower().endswith((".png", ".dds", ".jpg"))
+                        if "icon" in name.lower() and name.lower().endswith((".svg", ".dds", ".jpg", ".jpeg"))
                     ]
                     if icon_names:
                         try:
@@ -257,7 +257,7 @@ class ModManager:
                     if store_xml_file.exists():
                         self._parse_store_item(mod, store_xml_file.read_bytes())
 
-                for icon_name in ["icon.png", "icon.dds", "modIcon.png"]:
+                for icon_name in ["icon.svg", "icon.dds", "modIcon.svg"]:
                     icon_path = path / icon_name
                     if icon_path.exists():
                         try:

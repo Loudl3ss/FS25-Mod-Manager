@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from core.new_game_session import NewGameSession
+from core.xml_generator import CareerXmlBuilder
 
 
 @dataclass
@@ -23,12 +24,25 @@ class SaveInfo:
     exists: bool = False
 
 
+@dataclass
+class BackupInfo:
+    path: str
+    filename: str
+    is_auto: bool
+
+    @property
+    def display_name(self) -> str:
+        prefix = "[Auto Backup]" if self.is_auto else "[App Backup]"
+        return f"{prefix} {self.filename}"
+
+
 class SaveManager:
     MAX_SLOTS = 20
 
     def __init__(self, base_path: str):
         self.base_path = base_path
         self.backup_dir = os.path.join(base_path, "backups_fs25manager")
+        self.official_backup_dir = os.path.join(base_path, "savegameBackup")
 
     def get_all_saves(self) -> list[SaveInfo]:
         saves = []
@@ -107,14 +121,21 @@ class SaveManager:
         except Exception as e:
             return False, str(e)
 
-    def restore_save(self, zip_path: str, slot: int) -> tuple[bool, str]:
+    def restore_save(self, path: str, slot: int) -> tuple[bool, str]:
         save_path = os.path.join(self.base_path, f"savegame{slot}")
         try:
             if os.path.isdir(save_path):
                 shutil.rmtree(save_path)
             os.makedirs(save_path, exist_ok=True)
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(save_path)
+
+            if os.path.isfile(path) and path.endswith(".zip"):
+                with zipfile.ZipFile(path, "r") as zf:
+                    zf.extractall(save_path)
+            elif os.path.isdir(path):
+                shutil.copytree(path, save_path, dirs_exist_ok=True)
+            else:
+                return False, "Unsupported backup format or path does not exist."
+
             return True, "Restored successfully"
         except Exception as e:
             return False, str(e)
@@ -124,29 +145,57 @@ class SaveManager:
         if not os.path.isdir(save_path):
             return False, "Save slot does not exist"
         try:
-            shutil.rmtree(save_path)
+            for entry in os.scandir(save_path):
+                if entry.is_dir(follow_symlinks=False):
+                    shutil.rmtree(entry.path)
+                else:
+                    os.remove(entry.path)
             return True, "Deleted"
         except Exception as e:
             return False, str(e)
 
-    def get_backups(self, slot: Optional[int] = None) -> list[str]:
-        if not os.path.isdir(self.backup_dir):
-            return []
-        backups = []
+    def get_backups(self, slot: Optional[int] = None) -> list[BackupInfo]:
+        backups: list[BackupInfo] = []
         prefix = f"savegame{slot}_" if slot else "savegame"
-        for f in sorted(os.listdir(self.backup_dir), reverse=True):
-            if f.startswith(prefix) and f.endswith(".zip"):
-                backups.append(os.path.join(self.backup_dir, f))
-        return backups
 
-    def delete_backup(self, zip_path: str) -> bool:
+        # 1) App zip backups
+        if os.path.isdir(self.backup_dir):
+            for f in os.listdir(self.backup_dir):
+                if f.startswith(prefix) and f.endswith(".zip"):
+                    backups.append(
+                        BackupInfo(
+                            path=os.path.join(self.backup_dir, f),
+                            filename=f,
+                            is_auto=False,
+                        )
+                    )
+
+        # 2) Official game folder backups
+        if os.path.isdir(self.official_backup_dir):
+            for f in os.listdir(self.official_backup_dir):
+                full_path = os.path.join(self.official_backup_dir, f)
+                if f.startswith(prefix) and os.path.isdir(full_path):
+                    backups.append(
+                        BackupInfo(
+                            path=full_path,
+                            filename=f,
+                            is_auto=True,
+                        )
+                    )
+
+        return sorted(backups, key=lambda b: b.filename, reverse=True)
+
+    def delete_backup(self, path: str) -> bool:
         try:
-            os.remove(zip_path)
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
             return True
         except Exception:
             return False
 
-    def finalize_new_game(self, session: NewGameSession) -> tuple[bool, str]:
+    def finalize_new_game(self, session: NewGameSession, mod_manager=None) -> tuple[bool, str]:
         """
         Create a new game save with the given session data.
         
@@ -162,17 +211,25 @@ class SaveManager:
         if not session.selected_map:
             return False, "No map selected"
         
-        # Find first empty slot
+        # Find first reusable slot.
+        # Prefer an existing savegame folder that has no careerSavegame.xml,
+        # then fall back to the first missing savegame folder.
         target_slot = None
+        first_missing_slot = None
         for slot in range(1, self.MAX_SLOTS + 1):
             save_path = os.path.join(self.base_path, f"savegame{slot}")
             career_xml = os.path.join(save_path, "careerSavegame.xml")
-            
-            # Slot is empty if directory doesn't exist or careerSavegame.xml doesn't exist
-            if not os.path.isdir(save_path) or not os.path.exists(career_xml):
+
+            if os.path.isdir(save_path) and not os.path.exists(career_xml):
                 target_slot = slot
                 break
-        
+
+            if not os.path.isdir(save_path) and first_missing_slot is None:
+                first_missing_slot = slot
+
+        if target_slot is None:
+            target_slot = first_missing_slot
+
         if target_slot is None:
             return False, "All save slots are full"
         
@@ -182,20 +239,64 @@ class SaveManager:
             # Create directory
             os.makedirs(save_path, exist_ok=True)
             
+            # Resolve map and selected mod details if manager is available.
+            mod_objs: list[dict[str, str]] = []
+            final_map_id = session.selected_map
+            final_map_title = session.selected_map
+
+            if mod_manager:
+                all_mods = {m.id: m for m in mod_manager.get_mods()}
+
+                if session.selected_map in all_mods:
+                    map_mod = all_mods[session.selected_map]
+                    stem_name = Path(map_mod.filename).stem if map_mod.filename else map_mod.name
+                    final_map_id = stem_name or map_mod.name or session.selected_map
+                    final_map_title = map_mod.title or map_mod.name or final_map_id
+
+                    # Ensure map mod is present in XML mod list.
+                    mod_objs.append(
+                        {
+                            "id": final_map_id,
+                            "modName": map_mod.name,
+                            "title": map_mod.title or map_mod.name,
+                            "version": map_mod.version or "1.0.0.0",
+                        }
+                    )
+
+                for mod_id in session.selected_mods:
+                    if mod_id in all_mods:
+                        m = all_mods[mod_id]
+                        mod_objs.append(
+                            {
+                                "id": m.id,
+                                "modName": m.name,
+                                "title": m.title or m.name,
+                                "version": m.version or "1.0.0.0",
+                            }
+                        )
+
+            # De-duplicate in case selected mods include map-like entries.
+            dedup: dict[str, dict[str, str]] = {}
+            for mod in mod_objs:
+                dedup[mod.get("modName", "")] = mod
+            mod_objs = list(dedup.values())
+
             # Generate careerSavegame.xml
             career_xml_path = os.path.join(save_path, "careerSavegame.xml")
             self._generate_career_savegame_xml(
                 career_xml_path,
-                session.selected_map,
+                final_map_id,
+                final_map_title,
                 session.settings,
-                target_slot
+                target_slot,
+                mod_objs,
             )
             
             # Generate placeables.xml
             placeables_xml_path = os.path.join(save_path, "placeables.xml")
             self._generate_placeables_xml(placeables_xml_path)
             
-            # Store mod references as metadata
+            # Keep a plain list as metadata for quick debug/inspection.
             if session.selected_mods:
                 self._store_mod_references(save_path, session.selected_mods)
             
@@ -211,37 +312,24 @@ class SaveManager:
                 pass
             return False, f"Failed to create game: {str(e)}"
 
-    def _generate_career_savegame_xml(self, xml_path: str, map_id: str, settings: dict, slot: int):
-        """Generate a basic careerSavegame.xml file."""
-        root = ET.Element("careerSavegame")
-        
-        # Settings
-        settings_elem = ET.SubElement(root, "settings")
-        ET.SubElement(settings_elem, "farmName").text = f"Farm {slot}"
-        ET.SubElement(settings_elem, "savegameName").text = f"Save {slot}"
-        ET.SubElement(settings_elem, "mapId").text = map_id
-        ET.SubElement(settings_elem, "mapTitle").text = map_id
-        ET.SubElement(settings_elem, "gameVersionNumber").text = "1.0.0"
-        
-        # Gameplay settings
-        ET.SubElement(settings_elem, "difficulty").text = settings.get("difficulty", "Normal")
-        ET.SubElement(settings_elem, "seasons").text = settings.get("seasons", "Enabled")
-        ET.SubElement(settings_elem, "economicSystem").text = settings.get("economicSystem", "Realistic")
-        
-        # Initial values
-        ET.SubElement(settings_elem, "playTime").text = "0"
-        now = datetime.now()
-        ET.SubElement(settings_elem, "saveDateFormatted").text = now.strftime("%Y-%m-%d %H:%M:%S")
-        ET.SubElement(settings_elem, "creationDate").text = str(int(now.timestamp()))
-        
-        # Player farm element with starting money
-        player_farm = ET.SubElement(root, "playerFarm")
-        player_farm.set("money", "50000")  # Starting money
-        
-        # Write to file with pretty formatting
-        tree = ET.ElementTree(root)
-        self._indent_xml(root)
-        tree.write(xml_path, encoding="utf-8", xml_declaration=True)
+    def _generate_career_savegame_xml(
+        self,
+        xml_path: str,
+        map_id: str,
+        map_title: str,
+        settings: dict,
+        slot: int,
+        mods: list[dict[str, str]] | None = None,
+    ):
+        """Generate careerSavegame.xml using CareerXmlBuilder."""
+        build_settings = dict(settings)
+        build_settings["mapId"] = map_id
+        build_settings["mapTitle"] = build_settings.get("mapTitle") or map_title or map_id
+        if not build_settings.get("farmName"):
+            build_settings["farmName"] = f"Farm {slot}"
+
+        builder = CareerXmlBuilder(build_settings, mods=mods or [])
+        builder.write(xml_path)
 
     def _generate_placeables_xml(self, xml_path: str):
         """Generate a basic placeables.xml file."""
@@ -257,7 +345,7 @@ class SaveManager:
     def _store_mod_references(self, save_path: str, mod_names: list[str]):
         """Store enabled mods as metadata in the save directory."""
         mods_file = os.path.join(save_path, "mods.txt")
-        with open(mods_file, "w") as f:
+        with open(mods_file, "w", encoding="utf-8") as f:
             for mod_name in mod_names:
                 f.write(f"{mod_name}\n")
 

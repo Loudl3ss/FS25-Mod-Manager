@@ -21,6 +21,7 @@ class MapSelectionView(QWidget):
     """Step 1: Map selection with persistence."""
 
     request_next_step = pyqtSignal()
+    map_selected = pyqtSignal()
 
     def __init__(self, session: NewGameSession, favorites=None, parent=None):
         super().__init__(parent)
@@ -28,10 +29,33 @@ class MapSelectionView(QWidget):
         self._favorites = favorites
         self._cards: dict[str, ModCard] = {}
         self._mods_data: dict[str, object] = {}  # Store mod objects by name
+        self._last_multi_fav_signature: tuple[str, ...] | None = None
 
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
+
+        nav_bar = QWidget()
+        nav_bar.setObjectName("WizardTopNav")
+        nav_lay = QHBoxLayout(nav_bar)
+        nav_lay.setContentsMargins(24, 12, 24, 12)
+
+        step_label = QLabel("Step 1 of 3")
+        step_label.setObjectName("WizardStepLabel")
+        nav_lay.addWidget(step_label)
+
+        nav_lay.addStretch()
+
+        self.btn_back = QPushButton("← Back")
+        self.btn_back.setObjectName("WizardNavSecondaryBtn")
+        self.btn_back.setEnabled(False)
+        nav_lay.addWidget(self.btn_back)
+
+        self.btn_next = QPushButton("Next →")
+        self.btn_next.setObjectName("WizardNavPrimaryBtn")
+        self.btn_next.setEnabled(False)
+        self.btn_next.clicked.connect(self._on_next_clicked)
+        nav_lay.addWidget(self.btn_next)
 
         # Header section
         header = QWidget()
@@ -63,34 +87,21 @@ class MapSelectionView(QWidget):
 
         self.scroll.setWidget(self.grid_container)
         self.main_layout.addWidget(self.scroll)
-
-        # Bottom Navigation
-        nav_bar = QWidget()
-        nav_bar.setStyleSheet("background-color: #0f172a; border-top: 1px solid #1e293b;")
-        nav_lay = QHBoxLayout(nav_bar)
-        nav_lay.setContentsMargins(40, 16, 40, 16)
-
-        nav_lay.addStretch()
-
-        self.btn_next = QPushButton("Next  →")
-        self.btn_next.setObjectName("PrimaryBtn")
-        self.btn_next.setEnabled(False)
-        self.btn_next.clicked.connect(self._on_next_clicked)
-        nav_lay.addWidget(self.btn_next)
-
         self.main_layout.addWidget(nav_bar)
 
     def populate_maps(self, mods):
         """Filter mods for maps and populate the grid."""
         # Clear existing
-        for i in reversed(range(self.grid.count())):
-            widget = self.grid.itemAt(i).widget()
-            if widget:
-                widget.setParent(None)
+        while self.grid.count():
+            item = self.grid.takeAt(0)
+            widget = item.widget() if item is not None else None
+            if widget is not None:
+                widget.deleteLater()
         self._cards.clear()
         self._mods_data.clear()
 
         maps = [m for m in mods if m.category == "Map"]
+        favorite_map_ids = [m.id for m in maps if self._favorites and self._favorites.is_favorite(m.id)]
 
         columns = 4
         for idx, mod in enumerate(maps):
@@ -119,9 +130,36 @@ class MapSelectionView(QWidget):
             self.grid.addWidget(card, row, col)
             self._cards[mod.id] = card  # Use ID as key
             self._mods_data[mod.id] = mod  # Use ID as key
-        # Restore previous selection if it exists
-        if self.session.selected_map and self.session.selected_map in self._cards:
-            self._restore_selection()
+
+        # Favorite-aware preselection rules:
+        # - exactly 1 favorite map => preselect it
+        # - 2+ favorite maps => clear selection and show guidance message
+        # - no favorite maps => keep previous selection if valid
+        if len(favorite_map_ids) == 1 and favorite_map_ids[0] in self._cards:
+            self._deselect_all()
+            self.session.selected_map = favorite_map_ids[0]
+            self._apply_selection_style(self._cards[favorite_map_ids[0]])
+            self.btn_next.setEnabled(True)
+            self.map_selected.emit()
+            self._last_multi_fav_signature = None
+        elif len(favorite_map_ids) >= 2:
+            self._deselect_all()
+            self.session.selected_map = None
+            self.btn_next.setEnabled(False)
+            signature = tuple(sorted(favorite_map_ids))
+            if self._last_multi_fav_signature != signature:
+                self._last_multi_fav_signature = signature
+                QMessageBox.information(
+                    self,
+                    "Map Selection",
+                    "Only one favorite map can be used for auto-selection. "
+                    "Please keep only one map as favorite.",
+                )
+        else:
+            self._last_multi_fav_signature = None
+            # Restore previous selection if it exists
+            if self.session.selected_map and self.session.selected_map in self._cards:
+                self._restore_selection()
 
     def _on_favorite_toggled(self, mod_id: str, is_fav: bool):
         if not self._favorites:
@@ -134,6 +172,7 @@ class MapSelectionView(QWidget):
         self.session.selected_map = mod_id
         self._apply_selection_style(card)
         self.btn_next.setEnabled(True)
+        self.map_selected.emit()
 
     def _deselect_all(self):
         """Remove highlight from all cards."""
@@ -172,6 +211,7 @@ class MapSelectionView(QWidget):
             card = self._cards[self.session.selected_map]
             self._apply_selection_style(card)
             self.btn_next.setEnabled(True)
+            self.map_selected.emit()
 
     def showEvent(self, event):
         """Called when view becomes visible."""

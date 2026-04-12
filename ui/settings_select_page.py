@@ -102,6 +102,27 @@ class GameplaySettingsView(QWidget):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
+        nav_bar = QWidget()
+        nav_bar.setObjectName("WizardTopNav")
+        nav_layout = QHBoxLayout(nav_bar)
+        nav_layout.setContentsMargins(24, 12, 24, 12)
+
+        step_label = QLabel("Step 2 of 3")
+        step_label.setObjectName("WizardStepLabel")
+        nav_layout.addWidget(step_label)
+
+        nav_layout.addStretch()
+
+        self.btn_back = QPushButton("← Back")
+        self.btn_back.setObjectName("WizardNavSecondaryBtn")
+        self.btn_back.clicked.connect(self.request_previous_step.emit)
+        nav_layout.addWidget(self.btn_back)
+
+        self.btn_next = QPushButton("Next →")
+        self.btn_next.setObjectName("WizardNavPrimaryBtn")
+        self.btn_next.clicked.connect(self.request_next_step.emit)
+        nav_layout.addWidget(self.btn_next)
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -204,24 +225,6 @@ class GameplaySettingsView(QWidget):
         content_layout.addStretch()
         scroll.setWidget(content)
         root_layout.addWidget(scroll)
-
-        nav_bar = QWidget()
-        nav_bar.setStyleSheet("background-color: #0f172a; border-top: 1px solid #1e293b;")
-        nav_layout = QHBoxLayout(nav_bar)
-        nav_layout.setContentsMargins(40, 16, 40, 16)
-
-        self.btn_back = QPushButton("←  Back")
-        self.btn_back.setObjectName("SecondaryBtn")
-        self.btn_back.clicked.connect(self.request_previous_step.emit)
-        nav_layout.addWidget(self.btn_back)
-
-        nav_layout.addStretch()
-
-        self.btn_next = QPushButton("Next  →")
-        self.btn_next.setObjectName("PrimaryBtn")
-        self.btn_next.clicked.connect(self.request_next_step.emit)
-        nav_layout.addWidget(self.btn_next)
-
         root_layout.addWidget(nav_bar)
 
     def _build_general_group(self) -> SettingsGroupWidget:

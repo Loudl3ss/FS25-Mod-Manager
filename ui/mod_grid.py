@@ -1,5 +1,5 @@
 import math
-from PyQt6.QtCore import Qt, pyqtSignal, QRectF
+from PyQt6.QtCore import Qt, pyqtSignal, QRectF, QSize
 from PyQt6.QtGui import QFont, QFontMetrics, QPixmap, QColor, QPainter, QPainterPath
 from PyQt6.QtWidgets import (
     QLabel, QScrollArea, QVBoxLayout, QWidget, QSizePolicy, QFrame, QPushButton, QGraphicsDropShadowEffect, QLayout
@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 
 from core.thumbnail_loader import ThumbnailLoader
 from ui.flow_layout import FlowLayout
+from ui.assets import Icons
 
 
 class ClippedThumbnail(QLabel):
@@ -159,7 +160,7 @@ class ModCard(QFrame):
         self.category_badge.move(6, 6)
         self.category_badge.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
-        # Favorite Button overlay
+        # Favorite Button overlay with SVG icon
         self.fav_btn = QPushButton("", self)
         self.fav_btn.setObjectName("FavoriteBtn")
         self.fav_btn.setFixedSize(28, 28)
@@ -179,14 +180,12 @@ class ModCard(QFrame):
             }
         """)
         
-        self.fav_star_lbl = QLabel("★", self.fav_btn)
-        self.fav_star_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.fav_star_lbl.setFixedSize(28, 28)
-        self.fav_star_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        # Set SVG icon based on favorite state
         if self._is_favorite:
-            self.fav_star_lbl.setStyleSheet("background: transparent; color: #FFD700; font-size: 20px; font-weight: bold; border: none;")
+            self.fav_btn.setIcon(Icons.get_qicon(Icons.STAR))
         else:
-            self.fav_star_lbl.setStyleSheet("background: transparent; color: #FFD700; font-size: 18px; font-weight: normal; border: none;")
+            self.fav_btn.setIcon(Icons.get_qicon(Icons.STAR_OUTLINE))
+        self.fav_btn.setIconSize(QSize(20, 20))
 
         self.fav_btn.setProperty("active", self._is_favorite)
         self.fav_btn.style().unpolish(self.fav_btn)
@@ -247,10 +246,11 @@ class ModCard(QFrame):
         self.style().unpolish(self)
         self.style().polish(self)
         
+        # Update SVG icon based on favorite state
         if self._is_favorite:
-            self.fav_star_lbl.setStyleSheet("background: transparent; color: #FFD700; font-size: 20px; font-weight: bold; border: none;")
+            self.fav_btn.setIcon(Icons.get_qicon(Icons.STAR))
         else:
-            self.fav_star_lbl.setStyleSheet("background: transparent; color: #FFD700; font-size: 18px; font-weight: normal; border: none;")
+            self.fav_btn.setIcon(Icons.get_qicon(Icons.STAR_OUTLINE))
             
         self.fav_effect.setEnabled(self._is_favorite)
         self.favoriteToggled.emit(self.mod_id, self._is_favorite)

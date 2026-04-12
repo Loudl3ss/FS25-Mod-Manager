@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -19,7 +20,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.save_manager import SaveInfo, SaveManager
+from core.save_manager import BackupInfo, SaveInfo, SaveManager
 from ui.widgets import HSeparator, SaveCard, StatCard
 
 
@@ -48,10 +49,6 @@ class SavesPage(QWidget):
         ttl_col.addWidget(sub)
         hdr.addLayout(ttl_col, stretch=1)
 
-        btn_refresh = QPushButton("🔄 Refresh")
-        btn_refresh.setObjectName("ToolBtn")
-        btn_refresh.clicked.connect(self._load_saves)
-        hdr.addWidget(btn_refresh)
         root.addLayout(hdr)
 
         # Stats row
@@ -72,10 +69,11 @@ class SavesPage(QWidget):
         scroll.setFrameShape(QFrame.Shape.NoFrame)
 
         self._container = QWidget()
-        self._col = QVBoxLayout(self._container)
-        self._col.setContentsMargins(2, 4, 2, 4)
-        self._col.setSpacing(10)
-        self._col.addStretch()
+        self._grid = QGridLayout(self._container)
+        self._grid.setContentsMargins(2, 4, 2, 4)
+        self._grid.setHorizontalSpacing(12)
+        self._grid.setVerticalSpacing(12)
+        self._grid.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
 
         scroll.setWidget(self._container)
         root.addWidget(scroll, stretch=1)
@@ -83,8 +81,8 @@ class SavesPage(QWidget):
     # ── Load ──────────────────────────────────────────────────────────────────
     def _load_saves(self):
         # Clear old cards
-        while self._col.count() > 1:
-            item = self._col.takeAt(0)
+        while self._grid.count() > 0:
+            item = self._grid.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
@@ -95,12 +93,15 @@ class SavesPage(QWidget):
         total_backups = len(self._manager.get_backups())
         self._stat_backups.set_value(str(total_backups))
 
-        for save in saves:
+        for index, save in enumerate(saves):
             card = SaveCard(save)
             card.backup_requested.connect(self._backup_save)
             card.restore_requested.connect(self._show_restore_dialog)
             card.delete_requested.connect(self._delete_save)
-            self._col.insertWidget(self._col.count() - 1, card)
+            slot_index = max(save.slot - 1, 0)
+            column = min(slot_index // 7, 2)
+            row = slot_index % 7
+            self._grid.addWidget(card, row, column)
 
     # ── Actions ───────────────────────────────────────────────────────────────
     def _backup_save(self, save: SaveInfo):
@@ -145,7 +146,7 @@ class SavesPage(QWidget):
 # Backup / Restore Dialog
 # ─────────────────────────────────────────────────────────────────────────────
 class BackupRestoreDialog(QDialog):
-    def __init__(self, save: SaveInfo, backups: list[str],
+    def __init__(self, save: SaveInfo, backups: list[BackupInfo],
                  manager: SaveManager, parent=None):
         super().__init__(parent)
         self._save = save
@@ -166,8 +167,8 @@ class BackupRestoreDialog(QDialog):
 
         self._list = QListWidget()
         for bp in backups:
-            item = QListWidgetItem(os.path.basename(bp))
-            item.setData(Qt.ItemDataRole.UserRole, bp)
+            item = QListWidgetItem(bp.display_name)
+            item.setData(Qt.ItemDataRole.UserRole, bp.path)
             self._list.addItem(item)
         self._list.setCurrentRow(0)
         lay.addWidget(self._list, stretch=1)

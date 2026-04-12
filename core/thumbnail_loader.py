@@ -110,7 +110,8 @@ class ThumbnailLoader:
 
     @staticmethod
     def _placeholder_pixmap() -> QPixmap:
-        import os
         from ui.assets import Icons
-        pix = QPixmap(os.path.join(Icons.ICONS_PATH, Icons.PACKAGE))
+
+        icon = Icons.get_qicon(Icons.PACKAGE)
+        pix = icon.pixmap(128, 128)
         return pix if not pix.isNull() else QPixmap()

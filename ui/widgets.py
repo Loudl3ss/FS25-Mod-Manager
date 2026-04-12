@@ -339,16 +339,17 @@ class SaveCard(ClickableFrame):
         )
         main.addWidget(slot_lbl)
 
-        # ── Info block ───────────────────────────────────────────────────────
+        # ── Column 2: info block ─────────────────────────────────────────────
         info_col = QVBoxLayout()
-        info_col.setSpacing(3)
+        info_col.setSpacing(4)
+        info_col.setContentsMargins(0, 0, 0, 0)
 
         if save_info.exists:
             farm = QLabel(save_info.farm_name or f"Save {save_info.slot}")
             farm.setObjectName("ModTitle")
             info_col.addWidget(farm)
 
-            map_lbl = QLabel(f"🗺  {save_info.map_title or 'Unknown Map'}")
+            map_lbl = QLabel(save_info.map_title or "Unknown Map")
             map_lbl.setObjectName("ModAuthor")
             info_col.addWidget(map_lbl)
 
@@ -367,31 +368,38 @@ class SaveCard(ClickableFrame):
 
         main.addLayout(info_col, stretch=1)
 
-        # ── Buttons ──────────────────────────────────────────────────────────
+        # ── Column 3: buttons ────────────────────────────────────────────────
         if save_info.exists:
             from PyQt6.QtWidgets import QPushButton
             btn_col = QVBoxLayout()
-            btn_col.setSpacing(4)
-            btn_col.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            btn_col.setContentsMargins(0, 0, 0, 0)
+            btn_col.setSpacing(0)
+            btn_col.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
 
-            bak_btn = QPushButton("💾 Backup")
+            btn_row = QHBoxLayout()
+            btn_row.setContentsMargins(0, 0, 0, 0)
+            btn_row.setSpacing(12)
+            btn_row.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+            bak_btn = QPushButton("Backup")
             bak_btn.setObjectName("ToolBtn")
-            bak_btn.setFixedWidth(100)
+            bak_btn.setFixedSize(100, 40)
             bak_btn.clicked.connect(lambda: self.backup_requested.emit(self.save_info))
-            btn_col.addWidget(bak_btn)
+            btn_row.addWidget(bak_btn)
 
-            res_btn = QPushButton("🔄 Restore")
+            res_btn = QPushButton("Restore")
             res_btn.setObjectName("ToolBtn")
-            res_btn.setFixedWidth(100)
+            res_btn.setFixedSize(100, 40)
             res_btn.clicked.connect(lambda: self.restore_requested.emit(self.save_info))
-            btn_col.addWidget(res_btn)
+            btn_row.addWidget(res_btn)
 
-            del_btn = QPushButton("🗑 Delete")
+            del_btn = QPushButton("Delete")
             del_btn.setObjectName("DangerBtn")
-            del_btn.setFixedWidth(100)
+            del_btn.setFixedSize(100, 40)
             del_btn.clicked.connect(lambda: self.delete_requested.emit(self.save_info))
-            btn_col.addWidget(del_btn)
+            btn_row.addWidget(del_btn)
 
+            btn_col.addLayout(btn_row)
             main.addLayout(btn_col)
 
 

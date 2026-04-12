@@ -1,14 +1,14 @@
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 
 @dataclass
 class AppConfig:
-    # Mod Manager filtering variables
-    show_favorites_in_all_mods: bool = False
-    include_maps_in_all_mods: bool = False
-    strict_map_filtering: bool = True
+    # Folder paths for game and save files
+    mods_folder: str = ""
+    savedgames_folder: str = ""
+    game_install_path: str = ""
 
     def update_from_dict(self, data: dict):
         for k, v in data.items():

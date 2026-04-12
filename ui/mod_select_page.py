@@ -19,7 +19,7 @@ class ModLoadoutView(QWidget):
     """Step 3: Mod selection and game creation."""
 
     request_previous_step = pyqtSignal()
-    game_created = pyqtSignal()  # Emitted when game is successfully created
+    game_created = pyqtSignal(str)  # Emits success message including save slot
 
     def __init__(self, session: NewGameSession, save_manager=None, mod_manager=None, favorites_manager=None, parent=None):
         super().__init__(parent)
@@ -33,6 +33,27 @@ class ModLoadoutView(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
+
+        nav_bar = QWidget()
+        nav_bar.setObjectName("WizardTopNav")
+        nav_lay = QHBoxLayout(nav_bar)
+        nav_lay.setContentsMargins(24, 12, 24, 12)
+
+        step_label = QLabel("Step 3 of 3")
+        step_label.setObjectName("WizardStepLabel")
+        nav_lay.addWidget(step_label)
+
+        nav_lay.addStretch()
+
+        self.btn_back = QPushButton("← Back")
+        self.btn_back.setObjectName("WizardNavSecondaryBtn")
+        self.btn_back.clicked.connect(self.request_previous_step.emit)
+        nav_lay.addWidget(self.btn_back)
+
+        self.btn_create = QPushButton("Create Game")
+        self.btn_create.setObjectName("WizardNavPrimaryBtn")
+        self.btn_create.clicked.connect(self._on_create_clicked)
+        nav_lay.addWidget(self.btn_create)
 
         # Header
         header = QWidget()
@@ -87,33 +108,6 @@ class ModLoadoutView(QWidget):
         self._other_grid.setStyleSheet("background: transparent;")
         self._other_grid.setViewportMargins(30, 0, 0, 0)
         layout.addWidget(self._other_grid, stretch=1)
-
-        # Navigation buttons
-        nav_bar = QWidget()
-        nav_bar.setStyleSheet("background-color: #0f172a; border-top: 1px solid #1e293b;")
-        nav_lay = QHBoxLayout(nav_bar)
-        nav_lay.setContentsMargins(40, 16, 40, 16)
-
-        self.btn_back = QPushButton("←  Back")
-        self.btn_back.setObjectName("SecondaryBtn")
-        self.btn_back.clicked.connect(self.request_previous_step.emit)
-        nav_lay.addWidget(self.btn_back)
-
-        nav_lay.addStretch()
-
-        self.btn_create = QPushButton("Create Game")
-        self.btn_create.setObjectName("PrimaryBtn")
-        self.btn_create.setStyleSheet(
-            "background-color: #16a34a;"
-            "border: 1px solid #4ade80;"
-            "color: #ffffff;"
-            "font-weight: 600;"
-            "padding: 8px 20px;"
-            "border-radius: 8px;"
-        )
-        self.btn_create.clicked.connect(self._on_create_clicked)
-        nav_lay.addWidget(self.btn_create)
-
         layout.addWidget(nav_bar)
 
     def populate_mods(self, mods):
@@ -226,11 +220,10 @@ class ModLoadoutView(QWidget):
             return
 
         try:
-            success, message = self.save_manager.finalize_new_game(self.session)
+            success, message = self.save_manager.finalize_new_game(self.session, self.mod_manager)
             if success:
-                # QMessageBox.information(self, "Success", message)
                 self.session.reset()  # Reset for potential next wizard run
-                self.game_created.emit()
+                self.game_created.emit(message)
             else:
                 QMessageBox.critical(self, "Error", message)
         except Exception as e:

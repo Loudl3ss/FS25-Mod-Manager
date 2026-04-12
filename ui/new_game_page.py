@@ -1,5 +1,7 @@
 """New Game wizard main container."""
-from PyQt6.QtCore import Qt, pyqtSignal
+import re
+
+from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -9,10 +11,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ui.success_message_page import GameCreatedDialog
+from ui.assets import Icons
+
 from ui.map_select_page import MapSelectionView
 from ui.settings_select_page import GameplaySettingsView
 from ui.mod_select_page import ModLoadoutView
-from ui.success_message_page import SuccessMessageView
 from core.new_game_session import NewGameSession
 
 
@@ -30,6 +34,9 @@ class NewGameView(QWidget):
         self._mod_manager = mod_manager
         self._save_manager = save_manager
         self._favorites_manager = favorites_manager
+        self._step_default_icons = [Icons.NAV_MAPS, Icons.SETTINGS, Icons.NAV_MODS]
+        self._step_done_icon = Icons.SUCESFULL
+        self._step_completed = [False, False, False]
         
         # Create session
         self.session = NewGameSession()
@@ -52,16 +59,20 @@ class NewGameView(QWidget):
                 background-color: transparent;
                 border: none;
                 text-align: left;
-                padding: 12px 20px;
+                padding: 10px 14px;
+                padding-left: 12px;
                 color: #94a3b8;
                 font-size: 13px;
-                font-weight: 500;
+                font-weight: 400;
+                margin: 2px 8px;
+                border-radius: 8px;
             }
             QPushButton#SubNavBtn:hover {
                 background-color: #1e293b;
                 color: #e2e8f0;
             }
             QPushButton#SubNavBtn[active="true"] {
+                font-weight: 600;
                 color: #4ade80;
                 background-color: rgba(74, 222, 128, 0.1);
                 border-right: 3px solid #4ade80;
@@ -75,17 +86,18 @@ class NewGameView(QWidget):
         self._sub_nav_buttons: list[QPushButton] = []
         
         steps = [
-            ("❶  Map", 0),
-            ("❷  Settings", 1),
-            ("❸  Mods", 2),
-            ("✅  Success", 3),
+            ("Map", Icons.NAV_MAPS, 0),
+            ("Settings", Icons.SETTINGS, 1),
+            ("Mods", Icons.NAV_MODS, 2),
         ]
         
-        for text, idx in steps:
+        for text, icon_name, idx in steps:
             btn = QPushButton(text)
             btn.setObjectName("SubNavBtn")
             btn.setCheckable(True)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setIcon(Icons.get_qicon(icon_name))
+            btn.setIconSize(QSize(20, 20))
             btn.clicked.connect(lambda checked, i=idx: self._switch_step(i))
             self.sub_sidebar_layout.addWidget(btn)
             self._sub_nav_buttons.append(btn)
@@ -99,6 +111,7 @@ class NewGameView(QWidget):
         # Create views with session reference
         self.map_view = MapSelectionView(self.session, self._favorites_manager)
         self.map_view.request_next_step.connect(self._on_map_next)
+        self.map_view.map_selected.connect(self._on_map_selected)
         
         self.settings_view = GameplaySettingsView(self.session)
         self.settings_view.request_next_step.connect(self._on_settings_next)
@@ -108,19 +121,16 @@ class NewGameView(QWidget):
         self.mods_view.request_previous_step.connect(lambda: self._switch_step(1))
         self.mods_view.game_created.connect(self._on_game_created)
         
-        self.success_view = SuccessMessageView()
-        self.success_view.wizard_completed.connect(self.game_created.emit)
-        
         self.new_game_stack.addWidget(self.map_view)       # 0
         self.new_game_stack.addWidget(self.settings_view)  # 1
         self.new_game_stack.addWidget(self.mods_view)      # 2
-        self.new_game_stack.addWidget(self.success_view)   # 3
         
         # Assemble
         self.main_layout.addWidget(self.sub_sidebar)
         self.main_layout.addWidget(self.new_game_stack)
         
         # Select first step
+        self._refresh_step_icons()
         self._switch_step(0)
 
     def populate_data(self):
@@ -129,17 +139,49 @@ class NewGameView(QWidget):
             self.map_view.populate_maps(self._mod_manager.get_mods())
             self.mods_view.populate_mods(self._mod_manager.get_mods())
 
+    def open_map_step(self):
+        """Open wizard at step 1 (map selection)."""
+        self.populate_data()
+        self._step_completed = [bool(self.session.selected_map), False, False]
+        self._refresh_step_icons()
+        self._switch_step(0)
+
+    def _on_map_selected(self):
+        """Mark map step completed as soon as map selection is made."""
+        self._set_step_completed(0, True)
+
     def _on_map_next(self):
         """Advance from map selection to settings."""
+        self._set_step_completed(0, True)
         self._switch_step(1)
 
     def _on_settings_next(self):
         """Advance from settings to mods."""
+        self._set_step_completed(1, True)
         self._switch_step(2)
 
-    def _on_game_created(self):
-        """Advance from mods to success page."""
-        self._switch_step(3)
+    def _on_game_created(self, message: str):
+        """Show styled success dialog and handle user's next action."""
+        self._step_completed = [True, True, True]
+        self._refresh_step_icons()
+
+        match = re.search(r"save slot\s+(\d+)", message, flags=re.IGNORECASE)
+        slot = int(match.group(1)) if match else 1
+        save_name = self.session.settings.get("savegameName", "My Farm")
+
+        dlg = GameCreatedDialog(save_name, slot, parent=self)
+        dlg.exec()
+
+        if dlg.result_action() == "another":
+            self.session.reset()
+            self._step_completed = [False, False, False]
+            self._refresh_step_icons()
+            self._switch_step(0)
+        else:
+            self._step_completed = [False, False, False]
+            self._refresh_step_icons()
+            self._switch_step(0)
+            self.game_created.emit()
 
     def _switch_step(self, index: int):
         """Switch to a specific step in the wizard."""
@@ -148,5 +190,19 @@ class NewGameView(QWidget):
             active = (i == index)
             btn.setProperty("active", "true" if active else "false")
             btn.setChecked(active)
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
+            style = btn.style()
+            if style is not None:
+                style.unpolish(btn)
+                style.polish(btn)
+
+    def _set_step_completed(self, index: int, completed: bool):
+        if 0 <= index < len(self._step_completed):
+            if self._step_completed[index] != completed:
+                self._step_completed[index] = completed
+                self._refresh_step_icons()
+
+    def _refresh_step_icons(self):
+        for i, btn in enumerate(self._sub_nav_buttons):
+            icon_name = self._step_done_icon if self._step_completed[i] else self._step_default_icons[i]
+            btn.setIcon(Icons.get_qicon(icon_name))
+            btn.setIconSize(QSize(20, 20))

@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.mod_manager import ModInfo, ModManager
+from core.thumbnail_loader import ThumbnailLoader
 from ui.favorite_grid import FavoriteModGrid
 from ui.mod_grid import ModCard, ResponsiveModGrid
 from ui.widgets import Badge, HSeparator, StatCard
@@ -43,6 +44,14 @@ class ModLoaderThread(QThread):
 # ─────────────────────────────────────────────────────────────────────────────
 class ModsPage(QWidget):
     favorite_changed = pyqtSignal(str, bool)
+    _MAJOR_GROUPS = ["Maps", "Placeables", "Transport", "Equipment", "Scripts"]
+    _GROUP_CATEGORY_MAP = {
+        "Maps": {"Map"},
+        "Placeables": {"Placeable", "Shed", "Silo", "Factory", "Animal Pen"},
+        "Transport": {"Truck", "Large Tractor", "Medium Tractor", "Small Tractor", "Front Loader", "Loader", "Weight"},
+        "Equipment": {"Trailer", "Sprayer", "Mower", "Baler", "Seeder", "Plow", "Cultivator"},
+        "Scripts": {"Script", "Mod"},
+    }
 
     def __init__(self, manager: ModManager, favorites, parent=None):
         super().__init__(parent)
@@ -51,7 +60,7 @@ class ModsPage(QWidget):
         self._mods: list[ModInfo] = []
         self._selected_card = None
         self._filter_text = ""
-        self._filter_state = "all"   # all / enabled / disabled / favorites
+        self._filter_state = "All mods"
 
         self._build_ui()
         self._load_mods()
@@ -77,12 +86,7 @@ class ModsPage(QWidget):
 
         hdr.addLayout(title_col, stretch=1)
 
-        btn_open = QPushButton("📂 Open Folder")
-        btn_open.setObjectName("ToolBtn")
-        btn_open.clicked.connect(self._open_folder)
-        hdr.addWidget(btn_open)
-
-        btn_refresh = QPushButton("🔄 Refresh")
+        btn_refresh = QPushButton("🔄 Rescan for Mod")
         btn_refresh.setObjectName("ToolBtn")
         btn_refresh.clicked.connect(self._load_mods)
         hdr.addWidget(btn_refresh)
@@ -108,18 +112,12 @@ class ModsPage(QWidget):
         flt = QHBoxLayout()
         flt.setSpacing(8)
 
-        self._search = QLineEdit()
-        self._search.setObjectName("SearchBar")
-        self._search.setPlaceholderText("🔍  Search mods…")
-        self._search.textChanged.connect(self._on_search)
-        flt.addWidget(self._search, stretch=1)
-
         show_lbl = QLabel("SHOW:")
         show_lbl.setStyleSheet("color: #9ca3af; font-weight: bold; font-size: 13px;")
         flt.addWidget(show_lbl)
         
         self._filter_combo = QComboBox()
-        self._filter_combo.addItems(["All mods", "Favorites", "Maps", "Vehicles", "Scripts"])
+        self._filter_combo.addItems(["All mods", "Favorites"] + self._MAJOR_GROUPS)
         self._filter_combo.setStyleSheet("""
             QComboBox {
                 background-color: #1e293b;
@@ -142,6 +140,17 @@ class ModsPage(QWidget):
         self._filter_combo.currentTextChanged.connect(self._on_combo_filter)
         flt.addWidget(self._filter_combo)
 
+        flt.addSpacing(32)
+
+        self._search = QLineEdit()
+        self._search.setObjectName("SearchBar")
+        self._search.setPlaceholderText("Search…")
+        self._search.setFixedWidth(200)
+        self._search.textChanged.connect(self._on_search)
+        flt.addWidget(self._search)
+
+        flt.addStretch(1)
+
         root.addLayout(flt)
         root.addWidget(HSeparator())
 
@@ -155,15 +164,25 @@ class ModsPage(QWidget):
         left_lay.setContentsMargins(0, 0, 0, 0)
         left_lay.setSpacing(0)
 
-        fav_header = QLabel("⭐ Favourited Mods")
-        fav_header.setObjectName("PageSubtitle")
-        fav_header.setContentsMargins(8, 12, 8, 6)
-        left_lay.addWidget(fav_header)
+        self._fav_header = QLabel("⭐ Favourited Mods")
+        self._fav_header.setObjectName("PageSubtitle")
+        self._fav_header.setContentsMargins(8, 12, 8, 6)
+        left_lay.addWidget(self._fav_header)
 
         self._favorite_grid = FavoriteModGrid()
         left_lay.addWidget(self._favorite_grid)
 
-        left_lay.addWidget(HSeparator())
+        self._fav_separator = HSeparator()
+        left_lay.addWidget(self._fav_separator)
+
+        self._fav_available_gap = QWidget()
+        self._fav_available_gap.setFixedHeight(20)
+        left_lay.addWidget(self._fav_available_gap)
+
+        self._available_header = QLabel("Available Mods")
+        self._available_header.setObjectName("PageSubtitle")
+        self._available_header.setContentsMargins(8, 0, 8, 6)
+        left_lay.addWidget(self._available_header)
 
         self._grid_view = ResponsiveModGrid()
         left_lay.addWidget(self._grid_view)
@@ -190,29 +209,32 @@ class ModsPage(QWidget):
         self.update_dashboard_stats()
 
     def _populate_filter_options(self):
-        categories = {m.category for m in self._mods if m.category}
-        sorted_cats = sorted(list(categories))
-        
         self._filter_combo.blockSignals(True)
         self._filter_combo.clear()
-        
-        options = ["All mods", "Favorites"] + sorted_cats
+
+        options = ["All mods", "Favorites"] + self._MAJOR_GROUPS
         self._filter_combo.addItems(options)
-        
+
         current = getattr(self, "_filter_state", "All mods")
         if current in options:
             self._filter_combo.setCurrentText(current)
         else:
             self._filter_combo.setCurrentText("All mods")
             self._filter_state = "All mods"
-            
+
         self._filter_combo.blockSignals(False)
 
     def update_dashboard_stats(self):
         stats = self._manager.stats()
         self._stat_installed.set_value(str(stats["total"]))
         
-        fav_count = sum(1 for m in self._mods if self._favorites.is_favorite(m.filename))
+        # Prefer stable mod IDs; fallback to filename for legacy favorites data.
+        fav_count = sum(
+            1
+            for m in self._mods
+            if self._favorites.is_favorite(m.id)
+            or self._favorites.is_favorite(getattr(m, "filename", ""))
+        )
         self._stat_favorites.set_value(str(fav_count))
         
         map_count = sum(1 for card in self._grid_view._cards if hasattr(card, "category") and card.category == "Map")
@@ -233,43 +255,51 @@ class ModsPage(QWidget):
             is_fav = self._favorites.is_favorite(mod.id)
             if is_fav:
                 continue  # Skip favorited for the main grid
-            
-            thumbnail = QPixmap()
-            if mod.icon_data:
-                if not thumbnail.loadFromData(mod.icon_data) or thumbnail.isNull():
-                    try:
-                        from io import BytesIO
-                        from PIL import Image
-                        from PyQt6.QtGui import QImage
-                        img = Image.open(BytesIO(mod.icon_data)).convert("RGBA")
-                        qim = QImage(img.tobytes("raw", "RGBA"), img.size[0], img.size[1], QImage.Format.Format_RGBA8888)
-                        thumbnail = QPixmap.fromImage(qim)
-                    except Exception:
-                        pass
+
+            thumbnail = ThumbnailLoader.obtain_local_pixmap(
+                mod.icon_data,
+                mod_id=mod.id,
+                thumbnail_id=mod.thumbnail_id,
+            )
                         
-            card = self._grid_view.add_mod(mod.id, thumbnail, mod.title or mod.name, mod.version, False, mod.category)
+            card = self._grid_view.add_mod(
+                mod.id,
+                thumbnail,
+                mod.title or mod.name,
+                mod.version,
+                False,
+                mod.category,
+                thumbnail_id=mod.thumbnail_id,
+            )
             card.modClicked.connect(self._on_mod_clicked)
             card.favoriteToggled.connect(self._on_favorite_toggled)
 
         # Favorites grid (shows favorites regardless of filter)
         favorite_mods = [mod for mod in self._mods if self._favorites.is_favorite(mod.id)]
         for mod in favorite_mods:
-            thumbnail = QPixmap()
-            if mod.icon_data:
-                if not thumbnail.loadFromData(mod.icon_data) or thumbnail.isNull():
-                    try:
-                        from io import BytesIO
-                        from PIL import Image
-                        from PyQt6.QtGui import QImage
-                        img = Image.open(BytesIO(mod.icon_data)).convert("RGBA")
-                        qim = QImage(img.tobytes("raw", "RGBA"), img.size[0], img.size[1], QImage.Format.Format_RGBA8888)
-                        thumbnail = QPixmap.fromImage(qim)
-                    except Exception:
-                        pass
+            thumbnail = ThumbnailLoader.obtain_local_pixmap(
+                mod.icon_data,
+                mod_id=mod.id,
+                thumbnail_id=mod.thumbnail_id,
+            )
                         
-            card = self._favorite_grid.add_mod(mod.id, thumbnail, mod.title or mod.name, mod.version, True, mod.category)
+            card = self._favorite_grid.add_mod(
+                mod.id,
+                thumbnail,
+                mod.title or mod.name,
+                mod.version,
+                True,
+                mod.category,
+                thumbnail_id=mod.thumbnail_id,
+            )
             card.modClicked.connect(self._on_mod_clicked)
             card.favoriteToggled.connect(self._on_favorite_toggled)
+
+        has_favorites = len(favorite_mods) > 0
+        self._fav_header.setVisible(has_favorites)
+        self._favorite_grid.setVisible(has_favorites)
+        self._fav_separator.setVisible(has_favorites)
+        self._fav_available_gap.setVisible(has_favorites)
 
     def _on_mod_clicked(self, mod_id: str):
         for mod in self._filtered_mods():
@@ -280,11 +310,12 @@ class ModsPage(QWidget):
     def _filtered_mods(self) -> list[ModInfo]:
         result = self._mods
         state = getattr(self, "_filter_state", "All mods")
-        
+
         if state == "Favorites":
             result = [m for m in result if self._favorites.is_favorite(m.id)]
-        elif state != "All mods":
-            result = [m for m in result if m.category == state]
+        elif state in self._GROUP_CATEGORY_MAP:
+            allowed_categories = self._GROUP_CATEGORY_MAP[state]
+            result = [m for m in result if m.category in allowed_categories]
 
         if self._filter_text:
             q = self._filter_text.lower()
@@ -321,9 +352,6 @@ class ModsPage(QWidget):
         self.update_dashboard_stats()
         self._refresh_cards()
         self.favorite_changed.emit(mod_id, is_fav)
-
-    def _open_folder(self):
-        self._manager.open_folder()
 
     def _on_search(self, text: str):
         self._filter_text = text
@@ -388,30 +416,17 @@ class DetailPanel(QWidget):
     def show_mod(self, mod: ModInfo):
         self._current_mod = mod
         # icon
-        if mod.icon_data:
-            pix = QPixmap()
-            if pix.loadFromData(mod.icon_data) and not pix.isNull():
-                self._icon_lbl.setPixmap(
-                    pix.scaled(120, 120,
-                               Qt.AspectRatioMode.KeepAspectRatio,
-                               Qt.TransformationMode.SmoothTransformation)
-                )
-            else:
-                try:
-                    from io import BytesIO
-                    from PIL import Image
-                    from PyQt6.QtGui import QImage
-                    img = Image.open(BytesIO(mod.icon_data)).convert("RGBA")
-                    qim = QImage(img.tobytes("raw", "RGBA"), img.size[0], img.size[1], QImage.Format.Format_RGBA8888)
-                    pix = QPixmap.fromImage(qim)
-                    self._icon_lbl.setPixmap(
-                        pix.scaled(120, 120,
-                                   Qt.AspectRatioMode.KeepAspectRatio,
-                                   Qt.TransformationMode.SmoothTransformation)
-                    )
-                except Exception:
-                    self._icon_lbl.setText("🌾")
-                    self._icon_lbl.setPixmap(QPixmap())
+        pix = ThumbnailLoader.obtain_local_pixmap(
+            mod.icon_data,
+            mod_id=mod.id,
+            thumbnail_id=mod.thumbnail_id,
+        )
+        if not pix.isNull():
+            self._icon_lbl.setPixmap(
+                pix.scaled(120, 120,
+                           Qt.AspectRatioMode.KeepAspectRatio,
+                           Qt.TransformationMode.SmoothTransformation)
+            )
         else:
             self._icon_lbl.setText("🌾")
             self._icon_lbl.setPixmap(QPixmap())

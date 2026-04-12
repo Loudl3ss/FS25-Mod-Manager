@@ -1,6 +1,13 @@
 """Central icon registry for the application."""
 
+import os
+
+from PyQt6.QtGui import QIcon
+
 class Icons:
+    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+    ICONS_PATH = os.path.abspath(os.path.join(BASE_DIR, "icons"))
+
     # Sidebar Navigation (icon file paths)
     NAV_MOD_MANAGER = "tractor.png"
     NAV_NEW_GAME    = "plus.png"
@@ -27,3 +34,13 @@ class Icons:
     SETTINGS = "settings.png"
     APP_SETTINGS = "settings.png"
     SUCESFULL = "check.png"
+
+    @classmethod
+    def get_qicon(cls, icon_constant):
+        full_path = os.path.abspath(os.path.join(cls.ICONS_PATH, icon_constant))
+
+        if not os.path.exists(full_path):
+            print(f"[Icons] Warning: Missing icon file at {full_path}")
+            return QIcon()
+
+        return QIcon(full_path)

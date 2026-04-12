@@ -1,88 +1,88 @@
 """Global app settings page."""
+from __future__ import annotations
+
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
-    QHBoxLayout,
-    QLabel,
-    QScrollArea,
-    QSizePolicy,
-    QVBoxLayout,
-    QWidget,
-    QFrame,
-)
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from core.app_config import AppConfigManager
-from ui.assets import Icons
-from ui.widgets import BasePage, HSeparator, ToggleSwitch
+from ui.widgets import HSeparator, ToggleSwitch
 
 
-class AppSettingsPage(BasePage):
-    """Page for configuring application-level features like Mod Manager filtering behavior."""
+class AppSettingsPage(QWidget):
+    """Page for configuring application-level behavior."""
 
     def __init__(self, app_config_manager: AppConfigManager, parent=None):
-        super().__init__(parent, scrollable=True)
+        super().__init__(parent)
         self._manager = app_config_manager
         self._build_ui()
 
     def _build_ui(self):
-        # Configure Header
-        self.set_header("Application Settings", "Configure how the Mod Manager filters variables and handles lists.", Icons.APP_SETTINGS)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(20, 20, 20, 20)
+        root.setSpacing(14)
 
-        # Body: Filtering Options
+        title = QLabel("Application Settings")
+        title.setObjectName("PageTitle")
+        root.addWidget(title)
+
+        subtitle = QLabel("Configure how the Mod Manager filters library content.")
+        subtitle.setObjectName("PageSubtitle")
+        subtitle.setWordWrap(True)
+        root.addWidget(subtitle)
+        root.addWidget(HSeparator())
+
         section_title = QLabel("MOD MANAGER FILTERING")
-        section_title.setProperty("class", "DashboardSectionLabel")
-        self.content_layout.addWidget(section_title)
+        section_title.setObjectName("DashboardSectionLabel")
+        root.addWidget(section_title)
 
         def add_setting_row(title: str, desc: str, initial_state: bool, callback):
             row = QFrame()
             row.setProperty("class", "SettingsRow")
             row.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             r_lay = QHBoxLayout(row)
-            r_lay.setContentsMargins(16, 16, 16, 16)
+            r_lay.setContentsMargins(16, 12, 16, 12)
+            r_lay.setSpacing(12)
 
             text_col = QVBoxLayout()
+            text_col.setSpacing(2)
             lbl = QLabel(title)
-            lbl.setProperty("class", "SettingsTitle")
+            lbl.setObjectName("ModTitle")
             d_lbl = QLabel(desc)
-            d_lbl.setProperty("class", "SettingsDesc")
+            d_lbl.setObjectName("ModMeta")
+            d_lbl.setWordWrap(True)
             text_col.addWidget(lbl)
             text_col.addWidget(d_lbl)
-            text_col.addStretch()
 
             r_lay.addLayout(text_col, stretch=1)
 
             toggle = ToggleSwitch(checked=initial_state)
             toggle.toggled.connect(lambda v: self._handle_toggle(callback, v))
-            r_lay.addWidget(toggle)
+            r_lay.addWidget(toggle, alignment=Qt.AlignmentFlag.AlignVCenter)
 
-            self.content_layout.addWidget(row)
-            return toggle
+            root.addWidget(row)
 
         cfg = self._manager.config
-
         add_setting_row(
-            "Show Favorites in 'All Mods' library",
-            "If enabled, favorited mods will appear twice (in pinned top row and in the main list) on the dashboard.",
+            "Show Favorites in All Mods",
+            "Shows favorited mods in both Favorites and All Mods views.",
             cfg.show_favorites_in_all_mods,
-            self._set_fav_in_all
+            self._set_fav_in_all,
         )
-
         add_setting_row(
-            "Include Maps in 'All Mods' library",
-            "If enabled, Map mods will be visible in the general Mods grid rather than hidden entirely to their own tab.",
+            "Include Maps in All Mods",
+            "Includes map mods in the All Mods library list.",
             cfg.include_maps_in_all_mods,
-            self._set_maps_in_all
+            self._set_maps_in_all,
         )
-
         add_setting_row(
             "Strict Map Filtering",
-            "Forces Map mods to exclusively appear when the 'Maps' category/page is selected.",
+            "Only show map mods inside the Maps library page.",
             cfg.strict_map_filtering,
-            self._set_strict_maps
+            self._set_strict_maps,
         )
 
-        self.content_layout.addStretch()
+        root.addStretch()
 
-    # ── Callbacks ─────────────────────────────────────────────────────────────
     def _handle_toggle(self, func, value: bool):
         func(value)
         self._manager.save()

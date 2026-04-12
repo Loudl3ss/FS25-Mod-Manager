@@ -2,8 +2,11 @@ import math
 from PyQt6.QtCore import Qt, pyqtSignal, QRectF
 from PyQt6.QtGui import QFont, QFontMetrics, QPixmap, QColor, QPainter, QPainterPath
 from PyQt6.QtWidgets import (
-    QGridLayout, QLabel, QScrollArea, QVBoxLayout, QWidget, QSizePolicy, QFrame, QPushButton, QGraphicsDropShadowEffect, QLayout
+    QLabel, QScrollArea, QVBoxLayout, QWidget, QSizePolicy, QFrame, QPushButton, QGraphicsDropShadowEffect, QLayout
 )
+
+from core.thumbnail_loader import ThumbnailLoader
+from ui.flow_layout import FlowLayout
 
 
 class ClippedThumbnail(QLabel):
@@ -26,11 +29,12 @@ class ClippedThumbnail(QLabel):
             
             painter.setClipPath(path)
             
-            # Scaled pixmap keeping aspect ratio by expanding
-            scaled_pixmap = self.pixmap().scaled(
-                self.size(), 
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding, 
-                Qt.TransformationMode.SmoothTransformation
+            # Reuse a cached scaled preview instead of re-scaling on every paint.
+            scaled_pixmap = ThumbnailLoader.obtain_scaled_pixmap(
+                self.pixmap(),
+                width=self.size().width(),
+                height=self.size().height(),
+                keep_aspect_by_expanding=True,
             )
             
             # Center the pixmap in the draw rect
@@ -51,11 +55,17 @@ class ModCard(QFrame):
     modClicked = pyqtSignal(str)
     favoriteToggled = pyqtSignal(str, bool)
 
-    def __init__(self, mod_id: str, thumbnail: QPixmap, name: str, version: str, is_favorite: bool=False, category: str="Mod", parent=None):
+    def __init__(self, mod_id: str, thumbnail: QPixmap, name: str, version: str, is_favorite: bool=False, category: str="Mod", thumbnail_id: str = "", parent=None):
         super().__init__(parent)
+        self.card_id = f"mod-card-{mod_id}"
         self.mod_id = mod_id
+        self.thumbnail_id = thumbnail_id
         self.category = category
         self._is_favorite = is_favorite
+        self.setObjectName(self.card_id)
+        self.setProperty("cardId", self.card_id)
+        self.setProperty("modId", self.mod_id)
+        self.setProperty("thumbnailId", self.thumbnail_id)
         self.setProperty("favorite", "true" if self._is_favorite else "false")
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -73,6 +83,10 @@ class ModCard(QFrame):
                 border: 2px solid #2e7d32;
                 border-radius: 12px;
                 padding: 0px;
+            }
+            ModCard[selectedForGame="true"] {
+                background-color: rgba(56, 189, 248, 0.14);
+                border: 2px solid #38bdf8;
             }
             ModCard:hover {
                 background-color: rgba(15, 23, 42, 0.4);
@@ -96,6 +110,7 @@ class ModCard(QFrame):
         self.thumbnail_lbl.setStyleSheet(
             "background-color: transparent; border: none;"
         )
+        self.thumbnail_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         if not thumbnail.isNull() and not thumbnail.size().isEmpty():
             self.thumbnail_lbl.setPixmap(thumbnail)
         else:
@@ -142,6 +157,7 @@ class ModCard(QFrame):
         # Ensure the badge size adjusts to its text
         self.category_badge.adjustSize()
         self.category_badge.move(6, 6)
+        self.category_badge.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         # Favorite Button overlay
         self.fav_btn = QPushButton("", self)
@@ -203,6 +219,7 @@ class ModCard(QFrame):
         self.name_lbl.setFont(font_name)
         self.name_lbl.setStyleSheet("color: white; border: none; background: transparent;")
         self.name_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.name_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         text_layout.addWidget(self.name_lbl)
 
         # Version
@@ -212,6 +229,7 @@ class ModCard(QFrame):
         self.version_lbl.setFont(font_version)
         self.version_lbl.setStyleSheet("color: #94a3b8; border: none; background: transparent;")
         self.version_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.version_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         text_layout.addWidget(self.version_lbl)
 
         layout.addLayout(text_layout)
@@ -249,49 +267,29 @@ class ResponsiveModGrid(QScrollArea):
 
         self._container = QWidget()
         self.setWidget(self._container)
-        
-        self._grid = QGridLayout(self._container)
-        self._grid.setContentsMargins(8, 8, 8, 8)
-        self._grid.setSpacing(12)
+
+        # Flow layout keeps cards left-aligned with stable spacing.
+        self._flow = FlowLayout(self._container, margin=8, hSpacing=12, vSpacing=12)
         
         self._cards = []
-        self._card_width = 150 + 12 # width + spacing
 
-    def add_mod(self, mod_id: str, thumbnail: QPixmap, name: str, version: str, is_favorite: bool=False, category: str="Mod") -> ModCard:
+    def add_mod(self, mod_id: str, thumbnail: QPixmap, name: str, version: str, is_favorite: bool=False, category: str="Mod", thumbnail_id: str = "") -> ModCard:
         """Dynamically add a ModCard to the grid."""
-        card = ModCard(mod_id, thumbnail, name, version, is_favorite, category)
+        card = ModCard(mod_id, thumbnail, name, version, is_favorite, category, thumbnail_id=thumbnail_id)
         self._cards.append(card)
-        self._reflow()
+        self._flow.addWidget(card)
         return card
 
     def clear_mods(self):
         """Remove all cards."""
         for card in self._cards:
-            self._grid.removeWidget(card)
+            self._flow.removeWidget(card)
             card.deleteLater()
         self._cards.clear()
 
     def _reflow(self):
-        """Recalculate layout rows/columns based on current width."""
-        if not self._cards:
-            return
-            
-        # Determine available width
-        available_width = self.viewport().width() - 16
-        columns = max(1, available_width // self._card_width)
-
-        # Clear existing layout items without deleting widgets
-        for i in reversed(range(self._grid.count())):
-            item = self._grid.takeAt(i)
-
-        # Reassign positions
-        for index, card in enumerate(self._cards):
-            row = index // columns
-            col = index % columns
-            self._grid.addWidget(card, row, col, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        
-        # Add vertical spacer at the bottom to push items up
-        self._grid.setRowStretch(self._grid.rowCount(), 1)
+        """FlowLayout auto-wraps on resize; just trigger relayout."""
+        self._container.updateGeometry()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

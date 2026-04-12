@@ -1,9 +1,11 @@
+import hashlib
 import os
 import shutil
+import sqlite3
 import subprocess
+import time
 import zipfile
 import xml.etree.ElementTree as ET
-import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -24,61 +26,151 @@ class ModInfo:
     size_bytes: int = 0
     category: str = "Mod"
     id: str = ""  # Unique ID based on filename hash
+    thumbnail_id: str = ""
 
 
 class ModManager:
     def __init__(self, mods_path: str):
         self.mods_path = mods_path
         self.disabled_path = mods_path + "_disabled"
-        self.thumbnails_path = mods_path + "_thumbnails"
+        self.cache_path = mods_path + "_cache"
+        self.thumbnails_path = os.path.join(self.cache_path, "thumbnails")
+        self.thumbnail_db_path = os.path.join(self.cache_path, "thumbnail_cache.sqlite3")
         self.ensure_dirs()
 
     def ensure_dirs(self):
         os.makedirs(self.mods_path, exist_ok=True)
         os.makedirs(self.disabled_path, exist_ok=True)
+        os.makedirs(self.cache_path, exist_ok=True)
         os.makedirs(self.thumbnails_path, exist_ok=True)
+        self._ensure_thumbnail_db()
 
-    def get_thumbnail_path(self, mod_id: str) -> str:
-        """Get the file path for a mod's thumbnail."""
-        return os.path.join(self.thumbnails_path, f"{mod_id}.png")
+    def _ensure_thumbnail_db(self):
+        with sqlite3.connect(self.thumbnail_db_path) as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS thumbnail_cache (
+                    mod_id TEXT PRIMARY KEY,
+                    thumbnail_id TEXT NOT NULL,
+                    mod_filename TEXT NOT NULL,
+                    mod_path TEXT NOT NULL,
+                    cache_filename TEXT NOT NULL,
+                    updated_at REAL NOT NULL
+                )
+                """
+            )
+            conn.commit()
 
-    def save_thumbnail(self, mod_id: str, icon_data: bytes) -> bool:
-        """Save thumbnail data for a mod."""
+    def get_thumbnail_path(self, thumbnail_id: str) -> str:
+        """Get the file path for a cached thumbnail."""
+        return os.path.join(self.thumbnails_path, f"{thumbnail_id}.bin")
+
+    def _get_thumbnail_record(self, mod_id: str) -> Optional[sqlite3.Row]:
         try:
-            thumb_path = self.get_thumbnail_path(mod_id)
-            with open(thumb_path, 'wb') as f:
-                f.write(icon_data)
-            return True
+            with sqlite3.connect(self.thumbnail_db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                return conn.execute(
+                    "SELECT * FROM thumbnail_cache WHERE mod_id = ?",
+                    (mod_id,),
+                ).fetchone()
         except Exception:
-            return False
+            return None
 
-    def load_thumbnail(self, mod_id: str) -> Optional[bytes]:
-        """Load thumbnail data for a mod."""
+    def save_thumbnail(self, mod: ModInfo, icon_data: bytes) -> str:
+        """Save thumbnail data for a mod and index it in the cache database."""
         try:
-            thumb_path = self.get_thumbnail_path(mod_id)
-            if os.path.exists(thumb_path):
-                with open(thumb_path, 'rb') as f:
-                    return f.read()
+            thumbnail_id = hashlib.sha1(icon_data).hexdigest()[:24]
+            thumb_path = self.get_thumbnail_path(thumbnail_id)
+
+            if not os.path.exists(thumb_path):
+                with open(thumb_path, "wb") as handle:
+                    handle.write(icon_data)
+
+            with sqlite3.connect(self.thumbnail_db_path) as conn:
+                conn.execute(
+                    """
+                    INSERT INTO thumbnail_cache (
+                        mod_id, thumbnail_id, mod_filename, mod_path, cache_filename, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(mod_id) DO UPDATE SET
+                        thumbnail_id = excluded.thumbnail_id,
+                        mod_filename = excluded.mod_filename,
+                        mod_path = excluded.mod_path,
+                        cache_filename = excluded.cache_filename,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        mod.id,
+                        thumbnail_id,
+                        mod.filename,
+                        mod.filepath,
+                        os.path.basename(thumb_path),
+                        time.time(),
+                    ),
+                )
+                conn.commit()
+
+            mod.thumbnail_id = thumbnail_id
+            return thumbnail_id
         except Exception:
-            pass
-        return None
+            return ""
+
+    def load_thumbnail(self, mod_id: str) -> tuple[Optional[bytes], str]:
+        """Load thumbnail data and its thumbnail ID for a mod."""
+        try:
+            record = self._get_thumbnail_record(mod_id)
+            if not record:
+                return None, ""
+
+            thumb_path = os.path.join(self.thumbnails_path, record["cache_filename"])
+            if not os.path.exists(thumb_path):
+                with sqlite3.connect(self.thumbnail_db_path) as conn:
+                    conn.execute("DELETE FROM thumbnail_cache WHERE mod_id = ?", (mod_id,))
+                    conn.commit()
+                return None, ""
+
+            with open(thumb_path, "rb") as handle:
+                return handle.read(), record["thumbnail_id"]
+        except Exception:
+            return None, ""
 
     def cleanup_thumbnails(self, active_mod_ids: set[str]):
-        """Remove thumbnails for mods that no longer exist."""
+        """Remove cached thumbnails and index entries for mods that no longer exist."""
         try:
+            with sqlite3.connect(self.thumbnail_db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                rows = conn.execute(
+                    "SELECT mod_id, cache_filename FROM thumbnail_cache"
+                ).fetchall()
+
+                stale_mod_ids = [row["mod_id"] for row in rows if row["mod_id"] not in active_mod_ids]
+                if stale_mod_ids:
+                    conn.executemany(
+                        "DELETE FROM thumbnail_cache WHERE mod_id = ?",
+                        [(mod_id,) for mod_id in stale_mod_ids],
+                    )
+                    conn.commit()
+
+                referenced_files = {
+                    row["cache_filename"]
+                    for row in conn.execute("SELECT cache_filename FROM thumbnail_cache").fetchall()
+                }
+
             for filename in os.listdir(self.thumbnails_path):
-                if filename.endswith('.png'):
-                    mod_id = filename[:-4]  # Remove .png extension
-                    if mod_id not in active_mod_ids:
-                        os.remove(os.path.join(self.thumbnails_path, filename))
+                if filename not in referenced_files:
+                    os.remove(os.path.join(self.thumbnails_path, filename))
         except Exception:
             pass
+
+    def sync_thumbnail_cache(self, active_mod_ids: set[str]):
+        """Sync cache index and files against the current contents of the mods folders."""
+        self.cleanup_thumbnails(active_mod_ids)
 
     def get_mods(self) -> list[ModInfo]:
         self.ensure_dirs()
         mods: list[ModInfo] = []
         active_mod_ids = set()
-        
+
         for item in Path(self.mods_path).iterdir():
             if item.name.startswith("."):
                 continue
@@ -87,7 +179,7 @@ class ModManager:
                 if mod:
                     mods.append(mod)
                     active_mod_ids.add(mod.id)
-                    
+
         disabled = Path(self.disabled_path)
         if disabled.exists():
             for item in disabled.iterdir():
@@ -98,11 +190,9 @@ class ModManager:
                     if mod:
                         mods.append(mod)
                         active_mod_ids.add(mod.id)
-        
-        # Clean up thumbnails for removed mods
-        self.cleanup_thumbnails(active_mod_ids)
-        
-        return sorted(mods, key=lambda m: (m.title or m.name).lower())
+
+        self.sync_thumbnail_cache(active_mod_ids)
+        return sorted(mods, key=lambda mod: (mod.title or mod.name).lower())
 
     def _parse_mod(self, filepath: str, is_enabled: bool) -> Optional[ModInfo]:
         path = Path(filepath)
@@ -111,10 +201,9 @@ class ModManager:
             size = path.stat().st_size
         except Exception:
             size = 0
-        
-        # Generate unique ID based on filename
-        mod_id = hashlib.md5(path.name.encode('utf-8')).hexdigest()[:16]
-        
+
+        mod_id = hashlib.md5(path.name.encode("utf-8")).hexdigest()[:16]
+
         mod = ModInfo(
             name=path.stem,
             filename=path.name,
@@ -125,42 +214,44 @@ class ModManager:
             size_bytes=size,
             id=mod_id,
         )
-        
-        # Try to load existing thumbnail first
-        existing_thumb = self.load_thumbnail(mod_id)
+
+        existing_thumb, existing_thumbnail_id = self.load_thumbnail(mod_id)
         if existing_thumb:
             mod.icon_data = existing_thumb
-        
+            mod.thumbnail_id = existing_thumbnail_id
+
         try:
             store_xml_path = None
             if is_zip:
-                with zipfile.ZipFile(filepath, "r") as zf:
-                    if "modDesc.xml" in zf.namelist():
-                        with zf.open("modDesc.xml") as f:
-                            store_xml_path = self._parse_mod_desc(mod, f.read())
-                    
-                    if store_xml_path and store_xml_path in zf.namelist():
-                        with zf.open(store_xml_path) as f:
-                            self._parse_store_item(mod, f.read())
+                with zipfile.ZipFile(filepath, "r") as archive:
+                    if "modDesc.xml" in archive.namelist():
+                        with archive.open("modDesc.xml") as handle:
+                            store_xml_path = self._parse_mod_desc(mod, handle.read())
+
+                    if store_xml_path and store_xml_path in archive.namelist():
+                        with archive.open(store_xml_path) as handle:
+                            self._parse_store_item(mod, handle.read())
 
                     icon_names = [
-                        n for n in zf.namelist()
-                        if "icon" in n.lower() and n.lower().endswith((".png", ".dds", ".jpg"))
+                        name
+                        for name in archive.namelist()
+                        if "icon" in name.lower() and name.lower().endswith((".png", ".dds", ".jpg"))
                     ]
                     if icon_names:
                         try:
-                            icon_bytes = zf.read(icon_names[0])
+                            icon_bytes = archive.read(icon_names[0])
                             mod.icon_data = icon_bytes
-                            # Save thumbnail if we don't have one or if it's different
                             if not existing_thumb or existing_thumb != icon_bytes:
-                                self.save_thumbnail(mod_id, icon_bytes)
+                                mod.thumbnail_id = self.save_thumbnail(mod, icon_bytes)
+                            elif existing_thumbnail_id:
+                                mod.thumbnail_id = existing_thumbnail_id
                         except Exception:
                             pass
             else:
                 desc = path / "modDesc.xml"
                 if desc.exists():
                     store_xml_path = self._parse_mod_desc(mod, desc.read_bytes())
-                
+
                 if store_xml_path:
                     store_xml_file = path / store_xml_path
                     if store_xml_file.exists():
@@ -172,14 +263,16 @@ class ModManager:
                         try:
                             icon_bytes = icon_path.read_bytes()
                             mod.icon_data = icon_bytes
-                            # Save thumbnail if we don't have one or if it's different
                             if not existing_thumb or existing_thumb != icon_bytes:
-                                self.save_thumbnail(mod_id, icon_bytes)
+                                mod.thumbnail_id = self.save_thumbnail(mod, icon_bytes)
+                            elif existing_thumbnail_id:
+                                mod.thumbnail_id = existing_thumbnail_id
                         except Exception:
                             pass
                         break
         except Exception:
             pass
+
         return mod
 
     def _parse_mod_desc(self, mod: ModInfo, data: bytes) -> Optional[str]:
@@ -190,21 +283,20 @@ class ModManager:
             title_elem = root.find("title")
             if title_elem is not None:
                 for lang in ["en", "de", "fr"]:
-                    t = (title_elem.findtext(lang) or "").strip()
-                    if t:
-                        mod.title = t
+                    text = (title_elem.findtext(lang) or "").strip()
+                    if text:
+                        mod.title = text
                         break
                 if not mod.title:
                     mod.title = (title_elem.text or "").strip() or mod.name
             desc_elem = root.find("description")
             if desc_elem is not None:
                 for lang in ["en", "de", "fr"]:
-                    d = (desc_elem.findtext(lang) or "").strip()
-                    if d:
-                        mod.description = d
+                    text = (desc_elem.findtext(lang) or "").strip()
+                    if text:
+                        mod.description = text
                         break
 
-            # Parse Category
             mod.category = "Mod"
             maps_node = root.find("maps")
             if maps_node is not None:
@@ -213,18 +305,15 @@ class ModManager:
                     if "map" in cfg and ".xml" in cfg:
                         mod.category = "Map"
                         return None
-            
-            # Find storeItem reference
+
             store_items = root.find("storeItems")
             if store_items is not None:
                 first_item = store_items.find("storeItem")
                 if first_item is not None:
                     return first_item.get("xmlFilename")
-            
-            # Fallback for scripts if no storeItems exist
+
             if root.find("type") is not None or root.find("types") is not None or "script" in (mod.title or "").lower():
                 mod.category = "Script"
-
         except Exception:
             pass
         return None
@@ -256,15 +345,16 @@ class ModManager:
                         "sheds": "Shed",
                         "silos": "Silo",
                         "factories": "Factory",
-                        "animals": "Animal Pen"
+                        "animals": "Animal Pen",
                     }
                     lower_cat = cat.lower()
                     if lower_cat in mapping:
                         mod.category = mapping[lower_cat]
                     else:
                         import re
-                        s = re.sub('([A-Z])', r' \1', cat)
-                        mod.category = " ".join([word.capitalize() for word in s.split()])
+
+                        spaced = re.sub(r"([A-Z])", r" \1", cat)
+                        mod.category = " ".join(word.capitalize() for word in spaced.split())
         except Exception:
             pass
 
@@ -275,8 +365,8 @@ class ModManager:
             mod.filepath = dest
             mod.is_enabled = True
             return True
-        except Exception as e:
-            print(f"Enable error: {e}")
+        except Exception as exc:
+            print(f"Enable error: {exc}")
             return False
 
     def disable_mod(self, mod: ModInfo) -> bool:
@@ -287,20 +377,20 @@ class ModManager:
             mod.filepath = dest
             mod.is_enabled = False
             return True
-        except Exception as e:
-            print(f"Disable error: {e}")
+        except Exception as exc:
+            print(f"Disable error: {exc}")
             return False
 
     def delete_mod(self, mod: ModInfo) -> bool:
         try:
-            p = Path(mod.filepath)
-            if p.is_dir():
-                shutil.rmtree(str(p))
+            path = Path(mod.filepath)
+            if path.is_dir():
+                shutil.rmtree(str(path))
             else:
-                p.unlink()
+                path.unlink()
             return True
-        except Exception as e:
-            print(f"Delete error: {e}")
+        except Exception as exc:
+            print(f"Delete error: {exc}")
             return False
 
     def open_folder(self):
@@ -308,11 +398,9 @@ class ModManager:
 
     def stats(self) -> dict:
         mods = self.get_mods()
-        enabled = sum(1 for m in mods if m.is_enabled)
-        total_size = sum(m.size_bytes for m in mods)
+        enabled = sum(1 for mod in mods if mod.is_enabled)
+        total_size = sum(mod.size_bytes for mod in mods)
         return {
             "total": len(mods),
-            "enabled": enabled,
-            "disabled": len(mods) - enabled,
             "size_mb": round(total_size / (1024 * 1024), 1),
         }

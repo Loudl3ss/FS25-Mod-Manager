@@ -5,12 +5,14 @@ from PyQt6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
+from core.thumbnail_loader import ThumbnailLoader
 from ui.mod_grid import ModCard
 from core.new_game_session import NewGameSession
 
@@ -95,18 +97,11 @@ class MapSelectionView(QWidget):
             row = idx // columns
             col = idx % columns
 
-            # Load icon
-            pix = QPixmap()
-            if mod.icon_data:
-                if not pix.loadFromData(mod.icon_data) or pix.isNull():
-                    try:
-                        from io import BytesIO
-                        from PIL import Image
-                        img = Image.open(BytesIO(mod.icon_data)).convert("RGBA")
-                        qim = QImage(img.tobytes("raw", "RGBA"), img.size[0], img.size[1], QImage.Format.Format_RGBA8888)
-                        pix = QPixmap.fromImage(qim)
-                    except Exception:
-                        pix = QPixmap()
+            pix = ThumbnailLoader.obtain_local_pixmap(
+                mod.icon_data,
+                mod_id=mod.id,
+                thumbnail_id=mod.thumbnail_id,
+            )
 
             card = ModCard(
                 mod.id,  # Use mod ID instead of filename
@@ -114,7 +109,8 @@ class MapSelectionView(QWidget):
                 mod.title or mod.name,
                 mod.version,
                 is_favorite=self._favorites.is_favorite(mod.id) if self._favorites else False,  # Use ID
-                category=mod.category
+                category=mod.category,
+                thumbnail_id=mod.thumbnail_id,
             )
             card.setCursor(Qt.CursorShape.PointingHandCursor)
             card.modClicked.connect(lambda m_id, c=card: self._on_card_clicked(m_id, c))
@@ -187,3 +183,5 @@ class MapSelectionView(QWidget):
     def _on_next_clicked(self):
         if self.session.selected_map:
             self.request_next_step.emit()
+            return
+        QMessageBox.information(self, "Select Map", "Please select a map before continuing.")

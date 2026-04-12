@@ -104,7 +104,7 @@ class NewGameView(QWidget):
         self.settings_view.request_next_step.connect(self._on_settings_next)
         self.settings_view.request_previous_step.connect(lambda: self._switch_step(0))
         
-        self.mods_view = ModLoadoutView(self.session, save_manager, mod_manager)
+        self.mods_view = ModLoadoutView(self.session, save_manager, mod_manager, self._favorites_manager)
         self.mods_view.request_previous_step.connect(lambda: self._switch_step(1))
         self.mods_view.game_created.connect(self._on_game_created)
         

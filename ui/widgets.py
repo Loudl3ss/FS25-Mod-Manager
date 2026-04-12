@@ -11,6 +11,8 @@ from PyQt6.QtWidgets import (
     QStyle, QSizePolicy, QVBoxLayout, QWidget,
 )
 
+from core.thumbnail_loader import ThumbnailLoader
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ToggleSwitch
@@ -208,28 +210,16 @@ class ModCard(ClickableFrame):
             "border-bottom-left-radius: 0px; border-bottom-right-radius: 0px; "
             "background:#0f172a; font-size: 64px; border: none;"
         )
-        if mod_info.icon_data:
-            pix = QPixmap()
-            if pix.loadFromData(mod_info.icon_data) and not pix.isNull():
-                self._icon_lbl.setPixmap(
-                    pix.scaled(CARD_WIDTH - 4, 134, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                               Qt.TransformationMode.SmoothTransformation)
-                )
-            else:
-                # Fallback for DDS via Pillow
-                try:
-                    from io import BytesIO
-                    from PIL import Image
-                    from PyQt6.QtGui import QImage
-                    img = Image.open(BytesIO(mod_info.icon_data)).convert("RGBA")
-                    qim = QImage(img.tobytes("raw", "RGBA"), img.size[0], img.size[1], QImage.Format.Format_RGBA8888)
-                    pix = QPixmap.fromImage(qim)
-                    self._icon_lbl.setPixmap(
-                        pix.scaled(CARD_WIDTH - 4, 134, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                                   Qt.TransformationMode.SmoothTransformation)
-                    )
-                except Exception:
-                    self._icon_lbl.setText("🌾")
+        pix = ThumbnailLoader.obtain_local_pixmap(
+            mod_info.icon_data,
+            mod_id=getattr(mod_info, "id", ""),
+            thumbnail_id=getattr(mod_info, "thumbnail_id", ""),
+        )
+        if not pix.isNull():
+            self._icon_lbl.setPixmap(
+                pix.scaled(CARD_WIDTH - 4, 134, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                           Qt.TransformationMode.SmoothTransformation)
+            )
         else:
             self._icon_lbl.setText("🌾")
 

@@ -154,6 +154,21 @@ class SaveManager:
         except Exception as e:
             return False, str(e)
 
+    def copy_save(self, src_slot: int, dst_slot: int) -> tuple[bool, str]:
+        if src_slot == dst_slot:
+            return False, "Source and destination slots are the same"
+        src_path = os.path.join(self.base_path, f"savegame{src_slot}")
+        dst_path = os.path.join(self.base_path, f"savegame{dst_slot}")
+        if not os.path.isdir(src_path):
+            return False, "Source save slot does not exist"
+        try:
+            if os.path.isdir(dst_path):
+                shutil.rmtree(dst_path)
+            shutil.copytree(src_path, dst_path)
+            return True, f"Copied to Slot {dst_slot}"
+        except Exception as e:
+            return False, str(e)
+
     def get_backups(self, slot: Optional[int] = None) -> list[BackupInfo]:
         backups: list[BackupInfo] = []
         prefix = f"savegame{slot}_" if slot else "savegame"

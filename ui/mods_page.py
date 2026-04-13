@@ -46,6 +46,7 @@ class ModLoaderThread(QThread):
 class ModsPage(QWidget):
     favorite_changed = pyqtSignal(str, bool)
     request_new_game = pyqtSignal()
+    mods_loaded = pyqtSignal()
     _MAJOR_GROUPS = ["Maps", "Placeables", "Transport", "Equipment", "Scripts"]
     _GROUP_CATEGORY_MAP = {
         "Maps": {"Map"},
@@ -235,6 +236,7 @@ class ModsPage(QWidget):
         self._populate_filter_options()
         self._refresh_cards()
         self.update_dashboard_stats()
+        self.mods_loaded.emit()
 
     def _populate_filter_options(self):
         self._filter_combo.blockSignals(True)
@@ -407,13 +409,22 @@ class DetailPanel(QWidget):
         lay.setContentsMargins(12, 8, 12, 8)
         lay.setSpacing(12)
 
+        self._thumb_frame = QFrame()
+        self._thumb_frame.setFixedSize(120, 120)
+        self._thumb_frame.setStyleSheet(
+            "background: #1e293b; border-radius: 12px;"
+        )
+        _thumb_inner = QVBoxLayout(self._thumb_frame)
+        _thumb_inner.setContentsMargins(5, 5, 5, 5)
+        _thumb_inner.setSpacing(0)
+
         self._icon_lbl = QLabel()
         self._icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._icon_lbl.setFixedHeight(120)
         self._icon_lbl.setStyleSheet(
-            "border-radius: 12px; background: #1e293b; font-size: 48px;"
+            "background: transparent; border-radius: 8px; font-size: 48px;"
         )
-        lay.addWidget(self._icon_lbl)
+        _thumb_inner.addWidget(self._icon_lbl)
+        lay.addWidget(self._thumb_frame, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         self._title_lbl = QLabel()
         self._title_lbl.setObjectName("ModTitle")
@@ -489,7 +500,7 @@ class DetailPanel(QWidget):
         )
         if not pix.isNull():
             self._icon_lbl.setPixmap(
-                pix.scaled(120, 120,
+                pix.scaled(110, 110,
                            Qt.AspectRatioMode.KeepAspectRatio,
                            Qt.TransformationMode.SmoothTransformation)
             )

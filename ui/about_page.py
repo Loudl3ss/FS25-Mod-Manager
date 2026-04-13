@@ -12,8 +12,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ui.widgets import HSeparator
-
-APP_VERSION = "1.0.0"
+from core.version import APP_VERSION
 
 
 class AboutPage(QWidget):

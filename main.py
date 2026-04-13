@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QApplication, QFileDialog, QMessageBox
 from core.fs25_detector import FS25Detector
 from ui.main_window import MainWindow
 from ui.styles import DARK_THEME
+from core.version import APP_VERSION
 
 LOCK_FILE = "/tmp/mod_manager.lock"
 

@@ -10,18 +10,30 @@ venv/
 env/
 
 # Distribution / packaging
-dist/
 build/
+dist/
 *.egg-info/
+*.spec.bak
+
+# Release binary artifacts (built locally, not committed)
+server-deploy/releases/linux/
+server-deploy/releases/windows/
+server-deploy/releases/*.tar.gz
+server-deploy/releases/*.zip
 
 # App runtime cache
 *_cache/
+.cache/
 *.sqlite3
 *.bin
 
 # OS / editor
 .DS_Store
+Thumbs.db
 *.swp
 *.swo
 .idea/
 .vscode/
+
+# Stray pip version files
+=*

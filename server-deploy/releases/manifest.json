@@ -1,0 +1,16 @@
+{
+  "name": "FS25 Manager",
+  "version": "1.0.0",
+  "platform": "linux",
+  "arch": "x86_64",
+  "build_date": "2026-04-13",
+  "executable": "FS25-Manager",
+  "archive": "FS25-Manager-1.0.0-linux-x86_64.tar.gz",
+  "description": "FS25 Mod Manager – desktop utility for managing Farming Simulator 25 mods on Linux",
+  "requires": [
+    "libGL",
+    "libglib-2.0",
+    "libdbus-1"
+  ],
+  "changelog": "Initial stable release v1.0.0"
+}

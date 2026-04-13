@@ -392,8 +392,6 @@ class OnlineModsPage(QWidget):
         self.btn_load_all.clicked.connect(self._on_load_all_clicked)
         actions.addWidget(self.btn_load_all)
 
-        actions.addStretch(1)
-
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText("🔍 Search mods...")
         self.search_bar.setFixedWidth(220)
@@ -406,6 +404,7 @@ class OnlineModsPage(QWidget):
         )
         self.search_bar.textChanged.connect(self._on_search_changed)
         actions.addWidget(self.search_bar, alignment=Qt.AlignmentFlag.AlignVCenter)
+        actions.addStretch(1)
 
         latest_layout.addLayout(actions)
 
@@ -439,11 +438,11 @@ class OnlineModsPage(QWidget):
                 background-color: transparent;
                 border: none;
                 text-align: left;
-                padding: 3px 10px;
+                padding: 4px 10px;
                 color: #94a3b8;
                 font-size: 13px;
                 font-weight: 400;
-                margin: 0px 8px;
+                margin: 1px 8px;
                 border-radius: 8px;
             }
             QPushButton#SubNavBtn:hover {
@@ -483,7 +482,7 @@ class OnlineModsPage(QWidget):
         self.category_scroll.setWidget(self.category_container)
         self.category_layout = QVBoxLayout(self.category_container)
         self.category_layout.setContentsMargins(0, 0, 0, 0)
-        self.category_layout.setSpacing(0)
+        self.category_layout.setSpacing(2)
 
         self.category_status_label = QLabel("Wait ... Loading mods")
         self.category_status_label.setObjectName("PageSubtitle")

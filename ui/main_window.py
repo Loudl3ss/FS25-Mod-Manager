@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QSize, Qt
-from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -77,9 +76,15 @@ class MainWindow(QMainWindow):
         sb_lay.setSpacing(0)
 
         # Logo block
-        logo = QLabel("FS25")
+        logo = QLabel(
+            '<span style="font-family: Impact, \'Arial Black\', \'Segoe UI\', sans-serif; '
+            'font-size: 36px; font-weight: 900; color: #e5e7eb; letter-spacing: 0.5px;">FS</span>'
+            '<span style="font-family: Impact, \'Arial Black\', \'Segoe UI\', sans-serif; '
+            'font-size: 28px; font-weight: 900; color: #ffffff; background: #84cc16; '
+            'border: 1px solid #65a30d; border-radius: 8px; padding: 0 8px; margin-left: 6px;">25</span>'
+        )
+        logo.setTextFormat(Qt.TextFormat.RichText)
         logo.setObjectName("SidebarLogo")
-        logo.setFont(QFont("", 20, QFont.Weight.Bold))
         sb_lay.addWidget(logo)
 
         sub = QLabel("MANAGER")

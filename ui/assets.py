@@ -30,9 +30,11 @@ class Icons:
     PLUS = "add_2_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
     DELETE = "delete_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
     DOWNLOAD = "download_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
-    SETTINGS = "settings_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
     APP_SETTINGS = "settings_applications_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
     SUCESFULL = "check_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
+    COUNTER_1 = "counter_1_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
+    COUNTER_2 = "counter_2_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
+    COUNTER_3 = "counter_3_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
 
     @classmethod
     def get_qicon(cls, icon_constant):

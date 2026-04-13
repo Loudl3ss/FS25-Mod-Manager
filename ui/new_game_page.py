@@ -34,7 +34,11 @@ class NewGameView(QWidget):
         self._mod_manager = mod_manager
         self._save_manager = save_manager
         self._favorites_manager = favorites_manager
-        self._step_default_icons = [Icons.NAV_MAPS, Icons.SETTINGS, Icons.NAV_MODS]
+        self._step_default_icons = [
+            Icons.COUNTER_1,
+            Icons.COUNTER_2,
+            Icons.COUNTER_3,
+        ]
         self._step_done_icon = Icons.SUCESFULL
         self._step_completed = [False, False, False]
         
@@ -86,9 +90,9 @@ class NewGameView(QWidget):
         self._sub_nav_buttons: list[QPushButton] = []
         
         steps = [
-            ("Map", Icons.NAV_MAPS, 0),
-            ("Settings", Icons.SETTINGS, 1),
-            ("Mods", Icons.NAV_MODS, 2),
+            ("Select Map", self._step_default_icons[0], 0),
+            ("Gameplay Settings", self._step_default_icons[1], 1),
+            ("Mods", self._step_default_icons[2], 2),
         ]
         
         for text, icon_name, idx in steps:

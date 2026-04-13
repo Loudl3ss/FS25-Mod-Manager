@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.save_manager import BackupInfo, SaveInfo, SaveManager
+from ui.assets import Icons
 from ui.widgets import HSeparator, SaveCard, StatCard
 
 
@@ -41,9 +42,19 @@ class SavesPage(QWidget):
         hdr = QHBoxLayout()
         ttl_col = QVBoxLayout()
         ttl_col.setSpacing(2)
-        ttl = QLabel("💾 Save Manager")
+
+        ttl_row = QHBoxLayout()
+        ttl_row.setSpacing(8)
+        ttl_icon = QLabel()
+        ttl_icon.setPixmap(Icons.get_qicon(Icons.SAVE).pixmap(22, 22))
+        ttl_row.addWidget(ttl_icon)
+
+        ttl = QLabel("Save Manager")
         ttl.setObjectName("PageTitle")
-        ttl_col.addWidget(ttl)
+        ttl_row.addWidget(ttl)
+        ttl_row.addStretch(1)
+        ttl_col.addLayout(ttl_row)
+
         sub = QLabel("Backup, restore and manage your save games")
         sub.setObjectName("PageSubtitle")
         ttl_col.addWidget(sub)

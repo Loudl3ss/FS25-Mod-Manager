@@ -22,17 +22,17 @@ QMainWindow {
 }
 
 #SidebarLogo {
-    font-size: 20px;
+    font-size: 34px;
     font-weight: 700;
-    color: #4ade80;
-    padding: 20px 16px 8px 16px;
-    letter-spacing: 1px;
+    color: #e5e7eb;
+    padding: 20px 12px 6px 12px;
+    letter-spacing: 0.5px;
 }
 
 #SidebarSubtitle {
-    font-size: 10px;
+    font-size: 11px;
     color: #64748b;
-    padding: 0 16px 20px 16px;
+    padding: 0 16px 18px 16px;
     letter-spacing: 2px;
     text-transform: uppercase;
 }

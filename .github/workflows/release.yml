@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 jobs:
-  build-linux:
+  build-appimage:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,7 +19,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y libgl1 libglib2.0-0 libdbus-1-3
+          sudo apt-get install -y libgl1 libglib2.0-0 libdbus-1-3 curl
 
       - name: Install Python dependencies
         run: |
@@ -30,49 +30,46 @@ jobs:
       - name: Build Linux binary
         run: pyinstaller FS25-Manager.spec --distpath dist/linux --workpath build/linux --noconfirm
 
-      - name: Package Linux binary
+      - name: Build AppImage
         run: |
-          cd dist/linux
-          tar -czf ../../FS25-Manager-${{ github.ref_name }}-linux-x86_64.tar.gz FS25-Manager
+          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/scalable/apps
+          cp dist/linux/FS25-Manager AppDir/usr/bin/FS25-Manager
+          chmod +x AppDir/usr/bin/FS25-Manager
 
-      - name: Upload Linux artifact
+          cat > AppDir/AppRun << 'EOF'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/usr/bin/FS25-Manager" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+
+          cat > AppDir/FS25-Manager.desktop << 'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=FS25 Manager
+          Exec=FS25-Manager
+          Icon=fs25-manager
+          Categories=Utility;
+          Terminal=false
+          Comment=FS25 Mod Manager desktop utility
+          EOF
+
+          cp ui/icons/agriculture_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg AppDir/fs25-manager.svg
+          cp ui/icons/agriculture_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg AppDir/.DirIcon
+          cp ui/icons/agriculture_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg AppDir/usr/share/icons/hicolor/scalable/apps/fs25-manager.svg
+
+          curl -L -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool AppDir FS25-Manager-${{ github.ref_name }}-x86_64.AppImage
+
+      - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: linux-build
-          path: FS25-Manager-${{ github.ref_name }}-linux-x86_64.tar.gz
-
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
-
-      - name: Build Windows binary
-        run: pyinstaller FS25-Manager.spec --distpath dist/windows --workpath build/windows --noconfirm
-
-      - name: Package Windows binary
-        run: |
-          cd dist/windows
-          Compress-Archive -Path FS25-Manager.exe -DestinationPath ../../FS25-Manager-${{ github.ref_name }}-windows-x86_64.zip
-
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-build
-          path: FS25-Manager-${{ github.ref_name }}-windows-x86_64.zip
+          name: appimage-build
+          path: FS25-Manager-${{ github.ref_name }}-x86_64.AppImage
 
   release:
-    needs: [build-linux, build-windows]
+    needs: [build-appimage]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -92,14 +89,14 @@ jobs:
             ## FS25 Manager ${{ github.ref_name }}
 
             ### Downloads
-            - **Linux** (x86_64): `FS25-Manager-${{ github.ref_name }}-linux-x86_64.tar.gz`
-            - **Windows** (x86_64): `FS25-Manager-${{ github.ref_name }}-windows-x86_64.zip`
+            - **Linux AppImage** (x86_64): `FS25-Manager-${{ github.ref_name }}-x86_64.AppImage`
 
             ### Installation
-            **Linux:** Extract and run `./FS25-Manager`
-            **Windows:** Extract and run `FS25-Manager.exe`
+            ```bash
+            chmod +x FS25-Manager-${{ github.ref_name }}-x86_64.AppImage
+            ./FS25-Manager-${{ github.ref_name }}-x86_64.AppImage
+            ```
           files: |
-            artifacts/linux-build/*.tar.gz
-            artifacts/windows-build/*.zip
+            artifacts/appimage-build/*.AppImage
           draft: false
           prerelease: false

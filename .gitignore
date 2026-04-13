@@ -20,6 +20,8 @@ server-deploy/releases/linux/
 server-deploy/releases/windows/
 server-deploy/releases/*.tar.gz
 server-deploy/releases/*.zip
+server-deploy/releases/appimage/
+tools/
 
 # App runtime cache
 *_cache/

@@ -244,6 +244,20 @@ QPushButton#DangerBtn:hover {
     background-color: #991b1b;
 }
 
+QPushButton#SuccessBtn {
+    background-color: #14532d;
+    border: 1px solid #4ade80;
+    color: #4ade80;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 12px;
+}
+
+QPushButton#SuccessBtn:hover {
+    background-color: #166534;
+    color: #86efac;
+}
+
 QPushButton#ToolBtn {
     background-color: transparent;
     border: 1px solid #334155;

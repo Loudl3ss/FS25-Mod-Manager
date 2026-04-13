@@ -15,6 +15,53 @@ from core.thumbnail_loader import ThumbnailLoader
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# SidebarNavButton
+# ─────────────────────────────────────────────────────────────────────────────
+class SidebarNavButton(QPushButton):
+    """Sidebar navigation button with optional text icon fallback."""
+
+    def __init__(self, text: str, generic_icon_text: str = "", parent=None):
+        super().__init__(text, parent)
+        self._generic_icon_text = generic_icon_text
+        self._badge_count = 0
+        self._badge_visible = False
+        self.setObjectName("NavBtn")
+        self.setCheckable(True)
+
+    def set_badge_count(self, count: int, show: bool = True):
+        self._badge_count = max(0, int(count))
+        self._badge_visible = show
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if not self._badge_visible:
+            return
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        count_txt = "99+" if self._badge_count > 99 else str(self._badge_count)
+        fm = QFontMetrics(self.font())
+        text_w = fm.horizontalAdvance(count_txt)
+        badge_w = max(18, text_w + 10)
+        badge_h = 18
+        badge_x = self.width() - badge_w - 14
+        badge_y = (self.height() - badge_h) // 2
+
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#16a34a"))
+        painter.drawRoundedRect(badge_x, badge_y, badge_w, badge_h, 9, 9)
+
+        painter.setPen(QColor("#ecfdf5"))
+        painter.drawText(
+            QRect(badge_x, badge_y, badge_w, badge_h),
+            Qt.AlignmentFlag.AlignCenter,
+            count_txt,
+        )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # ToggleSwitch
 # ─────────────────────────────────────────────────────────────────────────────
 class ToggleSwitch(QWidget):
@@ -314,6 +361,7 @@ class SaveCard(ClickableFrame):
     backup_requested = pyqtSignal(object)   # emits SaveInfo
     restore_requested = pyqtSignal(object)  # emits SaveInfo
     delete_requested = pyqtSignal(object)   # emits SaveInfo
+    copy_requested = pyqtSignal(object)     # emits SaveInfo
 
     def __init__(self, save_info, parent=None):
         super().__init__(parent)
@@ -387,8 +435,14 @@ class SaveCard(ClickableFrame):
             bak_btn.clicked.connect(lambda: self.backup_requested.emit(self.save_info))
             btn_row.addWidget(bak_btn)
 
+            cpy_btn = QPushButton("Copy to")
+            cpy_btn.setObjectName("ToolBtn")
+            cpy_btn.setFixedSize(100, 40)
+            cpy_btn.clicked.connect(lambda: self.copy_requested.emit(self.save_info))
+            btn_row.addWidget(cpy_btn)
+
             res_btn = QPushButton("Restore")
-            res_btn.setObjectName("ToolBtn")
+            res_btn.setObjectName("SuccessBtn")
             res_btn.setFixedSize(100, 40)
             res_btn.clicked.connect(lambda: self.restore_requested.emit(self.save_info))
             btn_row.addWidget(res_btn)

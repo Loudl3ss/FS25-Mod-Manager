@@ -22,15 +22,15 @@ class ClippedThumbnail(QLabel):
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
             
-            # The "Bleed" Trick: Expand rect slightly to draw under the border
-            draw_rect = QRectF(self.rect()).adjusted(-1, -1, 1, 0)
+            # Keep full thumbnail visible (no side-cropping) inside rounded bounds.
+            draw_rect = QRectF(self.rect())
             
             path = QPainterPath()
             path.addRoundedRect(draw_rect, float(self.corner_radius), float(self.corner_radius))
             
             painter.setClipPath(path)
             
-            # Reuse a cached scaled preview instead of re-scaling on every paint.
+            # Cover the full cell – expand+crop so all thumbnails align uniformly.
             scaled_pixmap = ThumbnailLoader.obtain_scaled_pixmap(
                 self.pixmap(),
                 width=self.size().width(),
@@ -56,8 +56,9 @@ class ModCard(QFrame):
     modClicked = pyqtSignal(str)
     favoriteToggled = pyqtSignal(str, bool)
 
-    def __init__(self, mod_id: str, thumbnail: QPixmap, name: str, version: str, is_favorite: bool=False, category: str="Mod", thumbnail_id: str = "", parent=None):
+    def __init__(self, mod_id: str, thumbnail: QPixmap, name: str, version: str, is_favorite: bool=False, category: str="Mod", thumbnail_id: str = "", show_favorite: bool = True, parent=None):
         super().__init__(parent)
+        self._show_favorite = show_favorite
         self.card_id = f"mod-card-{mod_id}"
         self.mod_id = mod_id
         self.thumbnail_id = thumbnail_id
@@ -69,6 +70,7 @@ class ModCard(QFrame):
         self.setProperty("thumbnailId", self.thumbnail_id)
         self.setProperty("favorite", "true" if self._is_favorite else "false")
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.setFixedSize(154, 205)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         
         # Styling
@@ -161,47 +163,50 @@ class ModCard(QFrame):
         self.category_badge.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         # Favorite Button overlay with SVG icon
-        self.fav_btn = QPushButton("", self)
-        self.fav_btn.setObjectName("FavoriteBtn")
-        self.fav_btn.setFixedSize(28, 28)
-        self.fav_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.fav_btn.setStyleSheet("""
-            QPushButton#FavoriteBtn {
-                background-color: transparent;
-                border: 2px solid transparent;
-                border-radius: 4px;
-            }
-            QPushButton#FavoriteBtn[active="true"] {
-                background-color: rgba(15, 23, 42, 0.8);
-                border: 2px solid #39FF14;
-            }
-            QPushButton#FavoriteBtn:hover {
-                background-color: rgba(0, 0, 0, 0.5);
-            }
-        """)
-        
-        # Set SVG icon based on favorite state
-        if self._is_favorite:
-            self.fav_btn.setIcon(Icons.get_qicon(Icons.STAR))
-        else:
-            self.fav_btn.setIcon(Icons.get_qicon(Icons.STAR_OUTLINE))
-        self.fav_btn.setIconSize(QSize(20, 20))
+        self.fav_btn = None
+        self.fav_effect = None
+        if self._show_favorite:
+            self.fav_btn = QPushButton("", self)
+            self.fav_btn.setObjectName("FavoriteBtn")
+            self.fav_btn.setFixedSize(28, 28)
+            self.fav_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.fav_btn.setStyleSheet("""
+                QPushButton#FavoriteBtn {
+                    background-color: transparent;
+                    border: 2px solid transparent;
+                    border-radius: 4px;
+                }
+                QPushButton#FavoriteBtn[active="true"] {
+                    background-color: rgba(15, 23, 42, 0.8);
+                    border: 2px solid #39FF14;
+                }
+                QPushButton#FavoriteBtn:hover {
+                    background-color: rgba(0, 0, 0, 0.5);
+                }
+            """)
 
-        self.fav_btn.setProperty("active", self._is_favorite)
-        self.fav_btn.style().unpolish(self.fav_btn)
-        self.fav_btn.style().polish(self.fav_btn)
-        self.style().unpolish(self)
-        self.style().polish(self)
-        
-        self.fav_effect = QGraphicsDropShadowEffect(self.fav_btn)
-        self.fav_effect.setBlurRadius(10)
-        self.fav_effect.setColor(QColor(57, 255, 20, 150))
-        self.fav_effect.setOffset(0, 0)
-        self.fav_btn.setGraphicsEffect(self.fav_effect)
-        self.fav_effect.setEnabled(self._is_favorite)
-        
-        self.fav_btn.move(116, 6)
-        self.fav_btn.clicked.connect(self._toggle_favorite)
+            # Set SVG icon based on favorite state
+            if self._is_favorite:
+                self.fav_btn.setIcon(Icons.get_qicon(Icons.STAR))
+            else:
+                self.fav_btn.setIcon(Icons.get_qicon(Icons.STAR_OUTLINE))
+            self.fav_btn.setIconSize(QSize(20, 20))
+
+            self.fav_btn.setProperty("active", self._is_favorite)
+            self.fav_btn.style().unpolish(self.fav_btn)
+            self.fav_btn.style().polish(self.fav_btn)
+            self.style().unpolish(self)
+            self.style().polish(self)
+
+            self.fav_effect = QGraphicsDropShadowEffect(self.fav_btn)
+            self.fav_effect.setBlurRadius(10)
+            self.fav_effect.setColor(QColor(57, 255, 20, 150))
+            self.fav_effect.setOffset(0, 0)
+            self.fav_btn.setGraphicsEffect(self.fav_effect)
+            self.fav_effect.setEnabled(self._is_favorite)
+
+            self.fav_btn.move(116, 6)
+            self.fav_btn.clicked.connect(self._toggle_favorite)
 
         # Bottom: Text Container
         text_layout = QVBoxLayout()
@@ -224,7 +229,9 @@ class ModCard(QFrame):
         # Version
         font_version = QFont()
         font_version.setPointSize(8)
-        self.version_lbl = QLabel(f"v{version}" if version else "v1.0")
+        version_text = f"v{version}" if version else "v1.0"
+        elided_version = metrics.elidedText(version_text, Qt.TextElideMode.ElideRight, 120)
+        self.version_lbl = QLabel(elided_version)
         self.version_lbl.setFont(font_version)
         self.version_lbl.setStyleSheet("color: #94a3b8; border: none; background: transparent;")
         self.version_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
@@ -237,7 +244,14 @@ class ModCard(QFrame):
         super().mousePressEvent(event)
         self.modClicked.emit(self.mod_id)
 
+    def set_selected(self, selected: bool):
+        self.setProperty("selectedForGame", "true" if selected else "false")
+        self.style().unpolish(self)
+        self.style().polish(self)
+
     def _toggle_favorite(self):
+        if not self._show_favorite or self.fav_btn is None:
+            return
         self._is_favorite = not self._is_favorite
         self.fav_btn.setProperty("active", "true" if self._is_favorite else "false")
         self.setProperty("favorite", "true" if self._is_favorite else "false")
@@ -252,7 +266,8 @@ class ModCard(QFrame):
         else:
             self.fav_btn.setIcon(Icons.get_qicon(Icons.STAR_OUTLINE))
             
-        self.fav_effect.setEnabled(self._is_favorite)
+        if self.fav_effect is not None:
+            self.fav_effect.setEnabled(self._is_favorite)
         self.favoriteToggled.emit(self.mod_id, self._is_favorite)
 
 
@@ -273,9 +288,18 @@ class ResponsiveModGrid(QScrollArea):
         
         self._cards = []
 
-    def add_mod(self, mod_id: str, thumbnail: QPixmap, name: str, version: str, is_favorite: bool=False, category: str="Mod", thumbnail_id: str = "") -> ModCard:
+    def add_mod(self, mod_id: str, thumbnail: QPixmap, name: str, version: str, is_favorite: bool=False, category: str="Mod", thumbnail_id: str = "", show_favorite: bool = True) -> ModCard:
         """Dynamically add a ModCard to the grid."""
-        card = ModCard(mod_id, thumbnail, name, version, is_favorite, category, thumbnail_id=thumbnail_id)
+        card = ModCard(
+            mod_id,
+            thumbnail,
+            name,
+            version,
+            is_favorite,
+            category,
+            thumbnail_id=thumbnail_id,
+            show_favorite=show_favorite,
+        )
         self._cards.append(card)
         self._flow.addWidget(card)
         return card

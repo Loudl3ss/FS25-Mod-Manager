@@ -98,6 +98,7 @@ class SavesPage(QWidget):
             card.backup_requested.connect(self._backup_save)
             card.restore_requested.connect(self._show_restore_dialog)
             card.delete_requested.connect(self._delete_save)
+            card.copy_requested.connect(self._copy_save)
             slot_index = max(save.slot - 1, 0)
             column = min(slot_index // 7, 2)
             row = slot_index % 7
@@ -140,6 +141,76 @@ class SavesPage(QWidget):
                 self._load_saves()
             else:
                 QMessageBox.warning(self, "Delete Failed", msg)
+
+    def _copy_save(self, save: SaveInfo):
+        available_slots: list[int] = []
+        for slot in range(1, self._manager.MAX_SLOTS + 1):
+            if slot == save.slot:
+                continue
+            slot_dir = os.path.join(self._manager.base_path, f"savegame{slot}")
+            career_xml = os.path.join(slot_dir, "careerSavegame.xml")
+            if not os.path.isfile(career_xml):
+                available_slots.append(slot)
+
+        if not available_slots:
+            QMessageBox.information(
+                self, "No Empty Slots",
+                "All save slots with a valid careerSavegame.xml are occupied."
+                " Delete or clear one first to make room.",
+            )
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Copy Slot {save.slot} — Select Destination")
+        dlg.setMinimumSize(320, 240)
+
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(20, 16, 20, 16)
+        lay.setSpacing(12)
+
+        lbl = QLabel(f"Copy <b>{save.farm_name}</b> (Slot {save.slot}) to:")
+        lbl.setTextFormat(Qt.TextFormat.RichText)
+        lay.addWidget(lbl)
+
+        lst = QListWidget()
+        for slot in available_slots:
+            lst.addItem(QListWidgetItem(f"Slot {slot} — Available"))
+        lst.setCurrentRow(0)
+        lay.addWidget(lst, stretch=1)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+
+        btn_copy = QPushButton("Copy")
+        btn_copy.setObjectName("PrimaryBtn")
+        btn_copy.clicked.connect(dlg.accept)
+        btn_row.addWidget(btn_copy)
+
+        btn_row.addStretch()
+
+        btn_cancel = QPushButton("Cancel")
+        btn_cancel.clicked.connect(dlg.reject)
+        btn_row.addWidget(btn_cancel)
+
+        lay.addLayout(btn_row)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        row = lst.currentRow()
+        if row < 0:
+            return
+        dst_slot = available_slots[row]
+
+        ok, msg = self._manager.copy_save(save.slot, dst_slot)
+        if ok:
+            QMessageBox.information(
+                self, "Copy Complete",
+                f"Slot {save.slot} copied to Slot {dst_slot}.",
+            )
+            self._load_saves()
+        else:
+            QMessageBox.warning(self, "Copy Failed", msg)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

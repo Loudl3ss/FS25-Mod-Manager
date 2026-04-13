@@ -41,7 +41,7 @@ class SidebarNavButton(QPushButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        count_txt = "99+" if self._badge_count > 99 else str(self._badge_count)
+        count_txt = str(self._badge_count)
         fm = QFontMetrics(self.font())
         text_w = fm.horizontalAdvance(count_txt)
         badge_w = max(18, text_w + 10)

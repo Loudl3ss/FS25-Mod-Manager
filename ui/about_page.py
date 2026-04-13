@@ -59,9 +59,8 @@ class AboutPage(QWidget):
         desc = QLabel(
             "FS25 Manager is an open-source desktop utility for Linux users "
             "of Farming Simulator 25.\n\n"
-            "Easily manage your mods, back up and restore save games, and "
-            "tweak game settings — all from one beautiful interface without "
-            "needing GIANTS Mod Manager."
+            "Manage local mods, browse online mod hubs, run a guided new game "
+            "setup, and maintain save slots from one interface built for daily use."
         )
         desc.setObjectName("ModAuthor")
         desc.setWordWrap(True)
@@ -71,9 +70,11 @@ class AboutPage(QWidget):
         lay.addWidget(HSeparator())
 
         features = [
-            ("📦", "Mod Manager", "Enable, disable or delete mods with one click"),
-            ("💾", "Save Manager", "Backup, restore and delete save game slots"),
-            ("🎛", "Settings Editor", "Adjust game settings without launching FS25"),
+            ("📦", "Local Mod Manager", "Enable, disable, search and organize your installed mods"),
+            ("🌐", "Online Browsing", "Browse FS25 Official, KINGMODS and FS25.NET with category filters"),
+            ("🧭", "New Game Wizard", "Choose map, configure gameplay settings and build your mod loadout"),
+            ("💾", "Save Manager", "Backup, restore, copy to another slot and delete save slots"),
+            ("⚙️", "App Settings", "Configure game folders and refresh data without restarting the app"),
         ]
 
         for icon, feat_title, feat_desc in features:

@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.new_game_session import NewGameSession
+from ui.assets import Icons
 
 
 class SettingsGroupWidget(QFrame):
@@ -139,6 +140,14 @@ class GameplaySettingsView(QWidget):
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setSpacing(8)
 
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(8)
+
+        title_icon = QLabel()
+        title_icon.setPixmap(Icons.get_qicon(Icons.COUNTER_2).pixmap(22, 22))
+        title_row.addWidget(title_icon)
+
         title = QLabel("Gameplay Settings")
         title.setObjectName("PageTitle")
         title.setStyleSheet(
@@ -146,12 +155,14 @@ class GameplaySettingsView(QWidget):
             "font-size: 22px;"
             "font-weight: 700;"
         )
-        header_layout.addWidget(title)
+        title_row.addWidget(title)
+        title_row.addStretch(1)
+        header_layout.addLayout(title_row)
 
         subtitle = QLabel("Configure your game world settings")
         subtitle.setObjectName("PageSubtitle")
         subtitle.setStyleSheet(
-            "color: #ffffff;"
+            "color: #64748b;"
             "font-size: 13px;"
         )
         header_layout.addWidget(subtitle)

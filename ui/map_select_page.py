@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 from core.thumbnail_loader import ThumbnailLoader
 from ui.mod_grid import ModCard
 from core.new_game_session import NewGameSession
+from ui.assets import Icons
 
 
 class MapSelectionView(QWidget):
@@ -62,9 +63,19 @@ class MapSelectionView(QWidget):
         header_lay = QVBoxLayout(header)
         header_lay.setContentsMargins(40, 40, 40, 20)
 
-        title = QLabel("❶  Select Map")
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(8)
+
+        title_icon = QLabel()
+        title_icon.setPixmap(Icons.get_qicon(Icons.COUNTER_1).pixmap(22, 22))
+        title_row.addWidget(title_icon)
+
+        title = QLabel("Select Map")
         title.setObjectName("PageTitle")
-        header_lay.addWidget(title)
+        title_row.addWidget(title)
+        title_row.addStretch(1)
+        header_lay.addLayout(title_row)
 
         info = QLabel("Choose the location for your new farming career.")
         info.setObjectName("PageSubtitle")

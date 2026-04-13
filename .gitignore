@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# App runtime cache
+*_cache/
+*.sqlite3
+*.bin
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/

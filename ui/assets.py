@@ -16,6 +16,7 @@ class Icons:
     NAV_MAPS = "map_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
     NAV_ABOUT = "info_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
     NAV_ONLINE_BROWSE = "globe_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
+    NAV_LOG_SCANNER = "search_logs_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
 
     # Common UI Symbols
     SAVE = "save_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
@@ -32,6 +33,7 @@ class Icons:
     DOWNLOAD = "download_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
     APP_SETTINGS = "settings_applications_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
     SUCESFULL = "check_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
+    LOG_SCANNER = "search_logs_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
     COUNTER_1 = "counter_1_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
     COUNTER_2 = "counter_2_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"
     COUNTER_3 = "counter_3_24dp_E3E3E3_FILL0_wght400_GRAD0_opsz24.svg"

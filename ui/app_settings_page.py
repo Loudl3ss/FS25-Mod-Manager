@@ -16,6 +16,8 @@ class AppSettingsPage(QWidget):
     """Page for configuring application folder paths."""
 
     rescan_requested = pyqtSignal()
+    backup_folder_changed = pyqtSignal(str)
+    manager_cache_root_changed = pyqtSignal(str)
 
     def __init__(self, app_config_manager: AppConfigManager, parent=None):
         super().__init__(parent)
@@ -53,6 +55,24 @@ class AppSettingsPage(QWidget):
             self._manager.config.savedgames_folder,
             self._on_savedgames_folder_selected,
             "select_savedgames_folder"
+        )
+
+        # Backup Folder
+        self._add_path_setting(
+            root,
+            "BACKUP FOLDER",
+            self._manager.config.backup_folder,
+            self._on_backup_folder_selected,
+            "select_backup_folder"
+        )
+
+        # FS25 Mod Manager cache root folder
+        self._add_path_setting(
+            root,
+            "FS25 MOD MANAGER CACHE ROOT",
+            self._manager.config.manager_cache_root,
+            self._on_manager_cache_root_selected,
+            "select_manager_cache_root"
         )
 
         # Game Install Path
@@ -149,6 +169,30 @@ class AppSettingsPage(QWidget):
             self._manager.config.game_install_path = folder
             self._manager.save()
             self.select_game_path_label.setText(folder)
+
+    def _on_backup_folder_selected(self):
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Select Backup Folder",
+            self._manager.config.backup_folder or self._manager.config.savedgames_folder or ""
+        )
+        if folder:
+            self._manager.config.backup_folder = folder
+            self._manager.save()
+            self.select_backup_folder_label.setText(folder)
+            self.backup_folder_changed.emit(folder)
+
+    def _on_manager_cache_root_selected(self):
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Select FS25 Mod Manager Cache Root",
+            self._manager.config.manager_cache_root or self._manager.config.game_install_path or ""
+        )
+        if folder:
+            self._manager.config.manager_cache_root = folder
+            self._manager.save()
+            self.select_manager_cache_root_label.setText(folder)
+            self.manager_cache_root_changed.emit(folder)
 
     def _on_save_and_rescan(self):
         """Save configuration and request a rescan."""

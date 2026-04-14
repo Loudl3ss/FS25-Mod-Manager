@@ -69,7 +69,7 @@ class AboutPage(QWidget):
         lay.addWidget(HSeparator())
 
         features = [
-            ("📦", "Local Mod Manager", "Enable, disable, search and organize your installed mods"),
+            ("📦", "Local Mod Manager", "Search and organize your installed mods"),
             ("🌐", "Online Browsing", "Browse FS25 Official, KINGMODS and FS25.NET with category filters"),
             ("🧭", "New Game Wizard", "Choose map, configure gameplay settings and build your mod loadout"),
             ("💾", "Save Manager", "Backup, restore, copy to another slot and delete save slots"),

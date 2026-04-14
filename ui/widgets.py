@@ -218,7 +218,6 @@ class ClickableFrame(QFrame):
 class ModCard(ClickableFrame):
     """Card widget displayed in the mod list."""
 
-    toggle_requested = pyqtSignal(object)       # emits ModInfo
     delete_requested = pyqtSignal(object)       # emits ModInfo
     favorite_toggled = pyqtSignal(object, bool) # emits (ModInfo, is_favorite)
 
@@ -323,8 +322,6 @@ class ModCard(ClickableFrame):
         
         outer.addLayout(text_lay)
 
-    # Removed `_on_toggle` as the toggle is now gone
-
     def _on_star_clicked(self):
         self._is_favorite = not self._is_favorite
         self._star_btn.setText("★" if self._is_favorite else "☆")
@@ -347,9 +344,6 @@ class ModCard(ClickableFrame):
         self.setProperty("selected", "true" if selected else "false")
         self.style().unpolish(self)
         self.style().polish(self)
-
-    def update_state(self, is_enabled: bool):
-        self.mod_info.is_enabled = is_enabled
 
 
 # ─────────────────────────────────────────────────────────────────────────────

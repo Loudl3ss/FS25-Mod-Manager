@@ -1,5 +1,16 @@
 """Global QSS dark theme for FS25 Manager."""
 
+PALETTE = {
+    "primary": "#16a34a",
+    "primary_hover": "#15803d",
+    "danger": "#7f1d1d",
+    "surface": "#1e293b",
+    "border": "#334155",
+    "text": "#e2e8f0",
+    "text_dim": "#94a3b8",
+    "muted": "#64748b",
+}
+
 DARK_THEME = """
 /* ── Global ─────────────────────────────────────────── */
 QWidget {

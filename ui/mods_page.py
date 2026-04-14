@@ -85,7 +85,7 @@ class ModsPage(QWidget):
         ttl = QLabel("⚙ Mod Manager")
         ttl.setObjectName("PageTitle")
         title_col.addWidget(ttl)
-        sub = QLabel("Enable, disable or remove mods")
+        sub = QLabel("Browse and remove mods")
         sub.setObjectName("PageSubtitle")
         title_col.addWidget(sub)
 

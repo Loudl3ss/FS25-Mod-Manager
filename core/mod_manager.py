@@ -30,17 +30,16 @@ class ModInfo:
 
 
 class ModManager:
-    def __init__(self, mods_path: str):
+    def __init__(self, mods_path: str, app_cache_root: Optional[str] = None):
         self.mods_path = mods_path
-        self.disabled_path = mods_path + "_disabled"
-        self.cache_path = mods_path + "_cache"
+        cache_root = Path(app_cache_root).expanduser() if app_cache_root else Path(mods_path).parent
+        self.cache_path = str(cache_root / "mods_cache")
         self.thumbnails_path = os.path.join(self.cache_path, "thumbnails")
         self.thumbnail_db_path = os.path.join(self.cache_path, "thumbnail_cache.sqlite3")
         self.ensure_dirs()
 
     def ensure_dirs(self):
         os.makedirs(self.mods_path, exist_ok=True)
-        os.makedirs(self.disabled_path, exist_ok=True)
         os.makedirs(self.cache_path, exist_ok=True)
         os.makedirs(self.thumbnails_path, exist_ok=True)
         self._ensure_thumbnail_db()
@@ -175,26 +174,15 @@ class ModManager:
             if item.name.startswith("."):
                 continue
             if item.suffix.lower() == ".zip" or item.is_dir():
-                mod = self._parse_mod(str(item), is_enabled=True)
+                mod = self._parse_mod(str(item))
                 if mod:
                     mods.append(mod)
                     active_mod_ids.add(mod.id)
 
-        disabled = Path(self.disabled_path)
-        if disabled.exists():
-            for item in disabled.iterdir():
-                if item.name.startswith("."):
-                    continue
-                if item.suffix.lower() == ".zip" or item.is_dir():
-                    mod = self._parse_mod(str(item), is_enabled=False)
-                    if mod:
-                        mods.append(mod)
-                        active_mod_ids.add(mod.id)
-
         self.sync_thumbnail_cache(active_mod_ids)
         return sorted(mods, key=lambda mod: (mod.title or mod.name).lower())
 
-    def _parse_mod(self, filepath: str, is_enabled: bool) -> Optional[ModInfo]:
+    def _parse_mod(self, filepath: str) -> Optional[ModInfo]:
         path = Path(filepath)
         is_zip = path.suffix.lower() == ".zip"
         try:
@@ -208,7 +196,7 @@ class ModManager:
             name=path.stem,
             filename=path.name,
             filepath=str(path),
-            is_enabled=is_enabled,
+            is_enabled=True,
             is_zip=is_zip,
             title=path.stem,
             size_bytes=size,
@@ -358,29 +346,6 @@ class ModManager:
         except Exception:
             pass
 
-    def enable_mod(self, mod: ModInfo) -> bool:
-        try:
-            dest = os.path.join(self.mods_path, mod.filename)
-            shutil.move(mod.filepath, dest)
-            mod.filepath = dest
-            mod.is_enabled = True
-            return True
-        except Exception as exc:
-            print(f"Enable error: {exc}")
-            return False
-
-    def disable_mod(self, mod: ModInfo) -> bool:
-        try:
-            os.makedirs(self.disabled_path, exist_ok=True)
-            dest = os.path.join(self.disabled_path, mod.filename)
-            shutil.move(mod.filepath, dest)
-            mod.filepath = dest
-            mod.is_enabled = False
-            return True
-        except Exception as exc:
-            print(f"Disable error: {exc}")
-            return False
-
     def delete_mod(self, mod: ModInfo) -> bool:
         try:
             path = Path(mod.filepath)
@@ -398,7 +363,6 @@ class ModManager:
 
     def stats(self) -> dict:
         mods = self.get_mods()
-        enabled = sum(1 for mod in mods if mod.is_enabled)
         total_size = sum(mod.size_bytes for mod in mods)
         return {
             "total": len(mods),

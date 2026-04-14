@@ -39,10 +39,19 @@ class BackupInfo:
 class SaveManager:
     MAX_SLOTS = 20
 
-    def __init__(self, base_path: str):
+    def __init__(self, base_path: str, backup_dir: Optional[str] = None, default_backup_base: Optional[str] = None):
         self.base_path = base_path
-        self.backup_dir = os.path.join(base_path, "backups_fs25manager")
+        backup_base = default_backup_base or base_path
+        self.default_backup_dir = os.path.join(backup_base, "backups_fs25manager")
+        self.backup_dir = backup_dir or self.default_backup_dir
         self.official_backup_dir = os.path.join(base_path, "savegameBackup")
+
+    def set_backup_dir(self, backup_dir: Optional[str]):
+        path = (backup_dir or "").strip()
+        self.backup_dir = path or self.default_backup_dir
+
+    def set_default_backup_base(self, backup_base: str):
+        self.default_backup_dir = os.path.join(backup_base, "backups_fs25manager")
 
     def get_all_saves(self) -> list[SaveInfo]:
         saves = []

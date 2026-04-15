@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from core.game_launcher import GameLauncher
 from core.save_manager import BackupInfo, SaveInfo, SaveManager
 from ui.assets import Icons
 from ui.widgets import HSeparator, SaveCard, StatCard
@@ -59,6 +60,11 @@ class SavesPage(QWidget):
         sub.setObjectName("PageSubtitle")
         ttl_col.addWidget(sub)
         hdr.addLayout(ttl_col, stretch=1)
+
+        self._btn_launch_game = QPushButton("LAUNCH GAME")
+        self._btn_launch_game.setObjectName("LaunchBtn")
+        self._btn_launch_game.clicked.connect(self._launch_game)
+        hdr.addWidget(self._btn_launch_game, alignment=Qt.AlignmentFlag.AlignTop)
 
         root.addLayout(hdr)
 
@@ -222,6 +228,11 @@ class SavesPage(QWidget):
             self._load_saves()
         else:
             QMessageBox.warning(self, "Copy Failed", msg)
+
+    def _launch_game(self):
+        ok, message = GameLauncher.launch_steam_game()
+        if not ok:
+            QMessageBox.warning(self, "Launch Failed", message)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

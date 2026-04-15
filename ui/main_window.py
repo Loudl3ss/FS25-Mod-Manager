@@ -22,6 +22,7 @@ from core.app_config import AppConfigManager
 from core.fs25_detector import FS25Detector
 from core.fs25net_scraper import FS25NetScraper
 from core.kingmods_scraper import KingModsScraper
+from core.game_launcher import GameLauncher
 from core.log_analyzer import LogAnalyzer
 from core.mod_manager import ModManager
 from core.radio_manager import RadioManager
@@ -222,6 +223,11 @@ class MainWindow(QMainWindow):
         sb_lay.addWidget(tools_widget)
 
         sb_lay.addStretch(1)
+
+        self.btn_launch_game = QPushButton("LAUNCH GAME")
+        self.btn_launch_game.setObjectName("LaunchBtn")
+        self.btn_launch_game.clicked.connect(GameLauncher.launch_steam_game)
+        sb_lay.addWidget(self.btn_launch_game)
 
         # --- Bottom Utility ---
         # App Settings (just above About)

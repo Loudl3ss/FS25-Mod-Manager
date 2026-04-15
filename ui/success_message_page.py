@@ -4,10 +4,14 @@ from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
+
+from core.game_launcher import GameLauncher
 
 
 class GameCreatedDialog(QDialog):
@@ -28,7 +32,7 @@ class GameCreatedDialog(QDialog):
 
         card = QWidget()
         card.setObjectName("GameCreatedCard")
-        card.setFixedWidth(420)
+        card.setFixedWidth(560)
         card.setStyleSheet("""
             QWidget#GameCreatedCard {
                 background-color: #1a1f2e;
@@ -83,6 +87,7 @@ class GameCreatedDialog(QDialog):
 
         btn_another = QPushButton("Create Another")
         btn_another.setFixedHeight(44)
+        btn_another.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         btn_another.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_another.setStyleSheet("""
             QPushButton {
@@ -101,8 +106,35 @@ class GameCreatedDialog(QDialog):
         """)
         btn_another.clicked.connect(self._on_another)
 
+        btn_launch = QPushButton("Launch Game")
+        btn_launch.setObjectName("LaunchBtn")
+        btn_launch.setFixedHeight(44)
+        btn_launch.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        btn_launch.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_launch.setStyleSheet("""
+            QPushButton {
+                background-color: #2ecc71;
+                color: #0b1220;
+                border: 1px solid #2ecc71;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 700;
+                padding: 0 20px;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+                border-color: #27ae60;
+            }
+            QPushButton:pressed {
+                background-color: #1e8449;
+                border-color: #1e8449;
+            }
+        """)
+        btn_launch.clicked.connect(self._on_launch_game)
+
         btn_hub = QPushButton("Back to Hub")
         btn_hub.setFixedHeight(44)
+        btn_hub.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         btn_hub.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_hub.setStyleSheet("""
             QPushButton {
@@ -121,7 +153,11 @@ class GameCreatedDialog(QDialog):
         btn_hub.clicked.connect(self._on_hub)
 
         btn_row.addWidget(btn_another)
+        btn_row.addWidget(btn_launch)
         btn_row.addWidget(btn_hub)
+        btn_row.setStretch(0, 1)
+        btn_row.setStretch(1, 1)
+        btn_row.setStretch(2, 1)
         layout.addLayout(btn_row)
 
         root.addWidget(card)
@@ -131,6 +167,14 @@ class GameCreatedDialog(QDialog):
         self.accept()
 
     def _on_hub(self):
+        self._result_action = "hub"
+        self.accept()
+
+    def _on_launch_game(self):
+        ok, message = GameLauncher.launch_steam_game()
+        if not ok:
+            QMessageBox.warning(self, "Launch Failed", message)
+            return
         self._result_action = "hub"
         self.accept()
 

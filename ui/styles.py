@@ -284,6 +284,27 @@ QPushButton#ToolBtn:hover {
     border-color: #64748b;
 }
 
+QPushButton#LaunchBtn {
+    background-color: #2ecc71;
+    color: #121212;
+    font-weight: 700;
+    font-size: 16px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 1px solid #2ecc71;
+    margin: 10px 18px 8px 8px;
+}
+
+QPushButton#LaunchBtn:hover {
+    background-color: #27ae60;
+    border-color: #27ae60;
+}
+
+QPushButton#LaunchBtn:pressed {
+    background-color: #1e8449;
+    border-color: #1e8449;
+}
+
 QPushButton#CollapsibleHeader {
     background-color: #0f172a;
     border: 1px solid #334155;

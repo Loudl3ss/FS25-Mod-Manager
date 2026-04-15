@@ -59,7 +59,8 @@ class AboutPage(QWidget):
             "FS25 Manager is an open-source desktop utility for Linux users "
             "of Farming Simulator 25.\n\n"
             "Manage local mods, browse online mod hubs, run a guided new game "
-            "setup, and maintain save slots from one interface built for daily use."
+            "setup, launch the game through Steam, and maintain save slots from one "
+            "interface built for daily use."
         )
         desc.setObjectName("ModAuthor")
         desc.setWordWrap(True)
@@ -72,6 +73,7 @@ class AboutPage(QWidget):
             ("📦", "Local Mod Manager", "Search and organize your installed mods"),
             ("🌐", "Online Browsing", "Browse FS25 Official, KINGMODS and FS25.NET with category filters"),
             ("🧭", "New Game Wizard", "Choose map, configure gameplay settings and build your mod loadout"),
+            ("🚀", "Launch Game", "Start Farming Simulator 25 directly through Steam from the manager"),
             ("💾", "Save Manager", "Backup, restore, copy to another slot and delete save slots"),
             ("⚙️", "App Settings", "Configure game folders and refresh data without restarting the app"),
         ]

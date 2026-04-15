@@ -4,6 +4,10 @@ import os
 import re
 from pathlib import Path
 
+from core.logging_utils import get_logger
+
+logger = get_logger("core.log_analyzer")
+
 
 class LogAnalyzer:
     """Parse and categorize FS25 log entries."""
@@ -146,7 +150,8 @@ class LogAnalyzer:
                                 "raw": line,
                             }
                         )
-        except Exception:
+        except (OSError, UnicodeDecodeError) as exc:
+            logger.warning("parse_log failed reading %s: %s", source_log_path, exc)
             return [
                 {
                     "type": "ERROR",

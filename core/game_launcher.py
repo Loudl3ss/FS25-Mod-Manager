@@ -4,6 +4,10 @@ from __future__ import annotations
 import subprocess
 from typing import Sequence
 
+from core.logging_utils import get_logger
+
+logger = get_logger("core.game_launcher")
+
 
 class GameLauncher:
     """Utility methods for launching Farming Simulator via Steam."""
@@ -42,7 +46,8 @@ class GameLauncher:
                 return True, f"Game launch started ({strategy_name})..."
             except FileNotFoundError:
                 continue
-            except Exception as exc:
+            except (OSError, ValueError) as exc:
+                logger.warning("launch strategy %s failed: %s", strategy_name, exc)
                 return False, f"Failed to launch game via {strategy_name}: {exc}"
 
         return False, "Failed to launch game: no supported Steam command found"

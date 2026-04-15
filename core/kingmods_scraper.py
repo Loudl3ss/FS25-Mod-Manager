@@ -8,6 +8,10 @@ from urllib.parse import parse_qs, urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
+from core.logging_utils import get_logger
+
+logger = get_logger("core.kingmods_scraper")
+
 
 class KingModsScraper:
     """Scraper service for KingMods FS25 listings/details/downloads."""
@@ -241,9 +245,13 @@ class KingModsScraper:
     def fetch_mods(self, filter_key: str = "new-mods", page: int = 0) -> list[dict[str, object]]:
         """Fetch KingMods cards for a specific filter and page."""
         url = self._filter_to_url(filter_key, page)
-        with self._build_session() as session:
-            response = session.get(url, timeout=20)
-            response.raise_for_status()
+        try:
+            with self._build_session() as session:
+                response = session.get(url, timeout=20)
+                response.raise_for_status()
+        except requests.RequestException as exc:
+            logger.warning("fetch_mods failed for filter=%s page=%s: %s", filter_key, page, exc)
+            return []
 
         soup = BeautifulSoup(response.text, "html.parser")
 
@@ -291,9 +299,16 @@ class KingModsScraper:
 
     def fetch_category_tree(self) -> list[dict[str, object]]:
         """Return requested category tree plus extra categories discovered on KingMods."""
-        with self._build_session() as session:
-            response = session.get(self.CATEGORIES_URL, timeout=20)
-            response.raise_for_status()
+        try:
+            with self._build_session() as session:
+                response = session.get(self.CATEGORIES_URL, timeout=20)
+                response.raise_for_status()
+        except requests.RequestException as exc:
+            logger.warning("fetch_category_tree failed: %s", exc)
+            return [
+                {"label": node["label"], "filter": str(node.get("filter", "")), "children": list(node.get("children", []))}
+                for node in self._REQUESTED_CATEGORY_TREE
+            ]
 
         soup = BeautifulSoup(response.text, "html.parser")
         lookup = self._extract_categories_lookup(soup)
@@ -374,9 +389,13 @@ class KingModsScraper:
 
     def fetch_mod_details(self, details_url: str) -> dict[str, object]:
         """Fetch detail-page data for a single KingMods mod."""
-        with self._build_session() as session:
-            response = session.get(details_url, timeout=20)
-            response.raise_for_status()
+        try:
+            with self._build_session() as session:
+                response = session.get(details_url, timeout=20)
+                response.raise_for_status()
+        except requests.RequestException as exc:
+            logger.warning("fetch_mod_details failed for %s: %s", details_url, exc)
+            return {}
 
         soup = BeautifulSoup(response.text, "html.parser")
 
@@ -454,14 +473,18 @@ class KingModsScraper:
         destination = Path(target_dir) / resolved_name
         temp_destination = destination.with_suffix(destination.suffix + ".part")
 
-        with self._build_session() as session:
-            headers = {"Referer": referer_url} if referer_url else None
-            with session.get(download_url, headers=headers, timeout=90, stream=True, allow_redirects=True) as response:
-                response.raise_for_status()
-                with open(temp_destination, "wb") as handle:
-                    for chunk in response.iter_content(chunk_size=1024 * 256):
-                        if chunk:
-                            handle.write(chunk)
+        try:
+            with self._build_session() as session:
+                headers = {"Referer": referer_url} if referer_url else None
+                with session.get(download_url, headers=headers, timeout=90, stream=True, allow_redirects=True) as response:
+                    response.raise_for_status()
+                    with open(temp_destination, "wb") as handle:
+                        for chunk in response.iter_content(chunk_size=1024 * 256):
+                            if chunk:
+                                handle.write(chunk)
+        except (requests.RequestException, OSError) as exc:
+            logger.warning("download_mod failed for %s: %s", download_url, exc)
+            raise
 
         temp_destination.replace(destination)
         return str(destination)

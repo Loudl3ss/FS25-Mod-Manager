@@ -39,7 +39,7 @@ class TestGameLauncher(unittest.TestCase):
         self.assertIn("no supported Steam command", message)
 
     def test_non_not_found_error_aborts_current_strategy(self) -> None:
-        with patch("core.game_launcher.subprocess.Popen", side_effect=RuntimeError("boom")):
+        with patch("core.game_launcher.subprocess.Popen", side_effect=PermissionError("boom")):
             ok, message = GameLauncher.launch_steam_game()
 
         self.assertFalse(ok)

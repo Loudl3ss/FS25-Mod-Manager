@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#E3E3E3">
+  <!-- Log lines -->
+  <rect x="80" y="-560" width="320" height="16" rx="2"/>
+  <rect x="80" y="-520" width="280" height="16" rx="2"/>
+  <rect x="80" y="-480" width="300" height="16" rx="2"/>
+  <rect x="80" y="-440" width="260" height="16" rx="2"/>
+  
+  <!-- Search magnifying glass -->
+  <circle cx="540" cy="-320" r="100" fill="none" stroke="#E3E3E3" stroke-width="48"/>
+  <rect x="600" y="-180" width="48" height="140" rx="24" transform="rotate(45 624 -110)"/>
+</svg>

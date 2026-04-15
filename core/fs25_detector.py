@@ -35,12 +35,20 @@ class FS25Detector:
         return os.path.join(base, "mods")
 
     @staticmethod
-    def get_disabled_mods_path(base: str) -> str:
-        return os.path.join(base, "mods_disabled")
-
-    @staticmethod
     def get_settings_path(base: str) -> str:
         return os.path.join(base, "gameSettings.xml")
+
+    @staticmethod
+    def get_streaming_radio_path(base: str) -> str:
+        return os.path.join(base, "music", "streamingInternetRadios.xml")
+
+    @staticmethod
+    def get_music_path(data_path: str) -> str:
+        return os.path.join(data_path, "music")
+
+    @staticmethod
+    def get_log_path(base: str) -> str:
+        return os.path.join(base, "log.txt")
 
     @staticmethod
     def get_save_path(base: str, slot: int) -> str:

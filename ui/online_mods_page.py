@@ -80,10 +80,8 @@ class ScraperWorker(QThread):
             return cached
 
         try:
-            headers = {}
-            if referer_url:
-                headers["Referer"] = referer_url
-            response = self._session.get(thumb_url, headers=headers or None, timeout=15)
+            headers = {"Referer": referer_url or "https://www.farming-simulator.com/"}
+            response = self._session.get(thumb_url, headers=headers, timeout=15)
             response.raise_for_status()
             data = response.content
             if data:

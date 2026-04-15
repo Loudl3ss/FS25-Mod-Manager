@@ -8,6 +8,11 @@ from io import BytesIO
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage, QPixmap, QPixmapCache
 
+from core.logging_utils import get_logger
+
+
+logger = get_logger("thumbnail_loader")
+
 
 class ThumbnailLoader:
     """Decode mod icon bytes once and reuse pixmaps from QPixmapCache."""
@@ -103,9 +108,11 @@ class ThumbnailLoader:
         failure_key = thumbnail_id or mod_id or hashlib.sha1(icon_data).hexdigest()[:24]
         if failure_key not in cls._logged_failures:
             cls._logged_failures.add(failure_key)
-            print(
-                f"[ThumbnailLoader] Failed to decode thumbnail "
-                f"mod_id={mod_id or '<unknown>'} thumbnail_id={thumbnail_id or '<none>'}: {exc}"
+            logger.warning(
+                "Failed to decode thumbnail mod_id=%s thumbnail_id=%s: %s",
+                mod_id or "<unknown>",
+                thumbnail_id or "<none>",
+                exc,
             )
 
     @staticmethod

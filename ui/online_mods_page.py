@@ -71,7 +71,7 @@ class ScraperWorker(QThread):
             if data:
                 self._thumb_cache.set(thumb_url, data)
             return data
-        except Exception:
+        except requests.RequestException:
             return b""
 
     def run(self):

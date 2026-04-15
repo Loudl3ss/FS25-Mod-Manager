@@ -236,7 +236,7 @@ class FS25NetScraper:
             try:
                 response = session.get(url, timeout=20)
                 response.raise_for_status()
-            except Exception:
+            except requests.RequestException:
                 return []
 
         soup = BeautifulSoup(response.text, "html.parser")
@@ -314,7 +314,7 @@ class FS25NetScraper:
             with self._build_session() as session:
                 response = session.get(details_url, timeout=20)
                 response.raise_for_status()
-        except Exception:
+        except requests.RequestException:
             return {}
 
         soup = BeautifulSoup(response.text, "html.parser")
@@ -433,10 +433,10 @@ class FS25NetScraper:
 
                 part_path.rename(file_path)
                 return str(file_path)
-        except Exception as exc:
+        except (requests.RequestException, OSError) as exc:
             if part_path.exists():
                 part_path.unlink()
-            raise exc
+            raise
 
     def fetch_category_tree(self) -> list[dict[str, object]]:
         """Return requested category tree plus extra categories discovered on FS25.NET."""
@@ -444,7 +444,7 @@ class FS25NetScraper:
             with self._build_session() as session:
                 response = session.get(self.CATEGORIES_URL, timeout=20)
                 response.raise_for_status()
-        except Exception:
+        except requests.RequestException:
             return self._build_requested_tree({})
 
         soup = BeautifulSoup(response.text, "html.parser")

@@ -10,6 +10,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from core.logging_utils import get_logger
+
+
+logger = get_logger("mod_manager")
+
 
 @dataclass
 class ModInfo:
@@ -72,7 +77,7 @@ class ModManager:
                     "SELECT * FROM thumbnail_cache WHERE mod_id = ?",
                     (mod_id,),
                 ).fetchone()
-        except Exception:
+        except sqlite3.Error:
             return None
 
     def save_thumbnail(self, mod: ModInfo, icon_data: bytes) -> str:
@@ -111,7 +116,7 @@ class ModManager:
 
             mod.thumbnail_id = thumbnail_id
             return thumbnail_id
-        except Exception:
+        except (OSError, sqlite3.Error, TypeError, ValueError):
             return ""
 
     def load_thumbnail(self, mod_id: str) -> tuple[Optional[bytes], str]:
@@ -130,7 +135,7 @@ class ModManager:
 
             with open(thumb_path, "rb") as handle:
                 return handle.read(), record["thumbnail_id"]
-        except Exception:
+        except (OSError, sqlite3.Error):
             return None, ""
 
     def cleanup_thumbnails(self, active_mod_ids: set[str]):
@@ -158,7 +163,7 @@ class ModManager:
             for filename in os.listdir(self.thumbnails_path):
                 if filename not in referenced_files:
                     os.remove(os.path.join(self.thumbnails_path, filename))
-        except Exception:
+        except (OSError, sqlite3.Error):
             pass
 
     def sync_thumbnail_cache(self, active_mod_ids: set[str]):
@@ -187,7 +192,7 @@ class ModManager:
         is_zip = path.suffix.lower() == ".zip"
         try:
             size = path.stat().st_size
-        except Exception:
+        except OSError:
             size = 0
 
         mod_id = hashlib.md5(path.name.encode("utf-8")).hexdigest()[:16]
@@ -233,7 +238,7 @@ class ModManager:
                                 mod.thumbnail_id = self.save_thumbnail(mod, icon_bytes)
                             elif existing_thumbnail_id:
                                 mod.thumbnail_id = existing_thumbnail_id
-                        except Exception:
+                        except (KeyError, OSError, zipfile.BadZipFile):
                             pass
             else:
                 desc = path / "modDesc.xml"
@@ -255,10 +260,10 @@ class ModManager:
                                 mod.thumbnail_id = self.save_thumbnail(mod, icon_bytes)
                             elif existing_thumbnail_id:
                                 mod.thumbnail_id = existing_thumbnail_id
-                        except Exception:
+                        except OSError:
                             pass
                         break
-        except Exception:
+        except (OSError, zipfile.BadZipFile, ET.ParseError, ValueError):
             pass
 
         return mod
@@ -302,7 +307,7 @@ class ModManager:
 
             if root.find("type") is not None or root.find("types") is not None or "script" in (mod.title or "").lower():
                 mod.category = "Script"
-        except Exception:
+        except ET.ParseError:
             pass
         return None
 
@@ -343,7 +348,7 @@ class ModManager:
 
                         spaced = re.sub(r"([A-Z])", r" \1", cat)
                         mod.category = " ".join(word.capitalize() for word in spaced.split())
-        except Exception:
+        except ET.ParseError:
             pass
 
     def delete_mod(self, mod: ModInfo) -> bool:
@@ -354,8 +359,8 @@ class ModManager:
             else:
                 path.unlink()
             return True
-        except Exception as exc:
-            print(f"Delete error: {exc}")
+        except OSError as exc:
+            logger.warning("Delete error for %s: %s", mod.filepath, exc)
             return False
 
     def open_folder(self):

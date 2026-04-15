@@ -4,6 +4,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from core.logging_utils import get_logger
+
+
+logger = get_logger("favorites")
+
 
 class FavoritesManager:
     """Persists a set of favourite mod IDs to a JSON file."""
@@ -34,8 +39,8 @@ class FavoritesManager:
             if self._path.exists():
                 data = json.loads(self._path.read_text(encoding="utf-8"))
                 self._favorites = self._parse_favorites_payload(data)
-        except Exception as e:
-            print(f"Favorites load error: {e}")
+        except (json.JSONDecodeError, OSError, TypeError, ValueError) as e:
+            logger.warning("Favorites load error: %s", e)
             self._favorites = set()
 
     def _save(self):
@@ -45,8 +50,8 @@ class FavoritesManager:
                 json.dumps({"favorites": sorted(self._favorites)}, indent=2),
                 encoding="utf-8",
             )
-        except Exception as e:
-            print(f"Favorites save error: {e}")
+        except (OSError, TypeError, ValueError) as e:
+            logger.warning("Favorites save error: %s", e)
 
     # ── API ───────────────────────────────────────────────────────────────────
     def is_favorite(self, mod_id: str) -> bool:

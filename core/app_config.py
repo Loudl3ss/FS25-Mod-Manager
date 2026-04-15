@@ -2,6 +2,11 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from core.logging_utils import get_logger
+
+
+logger = get_logger("app_config")
+
 
 @dataclass
 class AppConfig:
@@ -39,8 +44,8 @@ class AppConfigManager:
             if path.exists():
                 with open(path, "r", encoding="utf-8") as f:
                     return json.load(f)
-        except Exception:
-            pass
+        except (json.JSONDecodeError, OSError, TypeError, ValueError) as exc:
+            logger.warning("Failed to read JSON from %s: %s", path, exc)
         return {}
 
     def _write_json(self, path: Path, payload: dict) -> bool:
@@ -49,7 +54,8 @@ class AppConfigManager:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=4)
             return True
-        except Exception:
+        except (OSError, TypeError, ValueError) as exc:
+            logger.warning("Failed to write JSON to %s: %s", path, exc)
             return False
 
     def _resolve_cache_root_from_bootstrap(self) -> Path:

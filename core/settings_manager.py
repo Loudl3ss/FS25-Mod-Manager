@@ -3,6 +3,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from core.logging_utils import get_logger
+
+
+logger = get_logger("settings")
+
 
 @dataclass
 class GameSettings:
@@ -80,8 +85,8 @@ class SettingsManager:
             s.weeds_enabled = self._parse_bool(root.findtext("weedsEnabled"), False)
             s.lime_required = self._parse_bool(root.findtext("limeRequired"), False)
             s.snow_enabled = self._parse_bool(root.findtext("isSnowEnabled"), True)
-        except Exception as e:
-            print(f"Settings load error: {e}")
+        except (ET.ParseError, OSError, TypeError, ValueError) as e:
+            logger.warning("Settings load error: %s", e)
         return s
 
     def save(self, s: GameSettings) -> bool:
@@ -116,6 +121,6 @@ class SettingsManager:
             ET.indent(tree, space="    ")
             tree.write(str(p), encoding="utf-8", xml_declaration=True)
             return True
-        except Exception as e:
-            print(f"Settings save error: {e}")
+        except (ET.ParseError, OSError, TypeError, ValueError) as e:
+            logger.warning("Settings save error: %s", e)
             return False

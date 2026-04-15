@@ -96,7 +96,7 @@ class ModsPage(QWidget):
         btn_refresh.setIcon(Icons.get_qicon(Icons.RESCAN))
         btn_refresh.setIconSize(QSize(18, 18))
         btn_refresh.setFixedSize(140, 36)
-        btn_refresh.clicked.connect(self._load_mods)
+        btn_refresh.clicked.connect(self.reload_mods)
         hdr.addWidget(btn_refresh)
 
         if self._show_new_game_button:
@@ -224,6 +224,14 @@ class ModsPage(QWidget):
 
     def _unlock_new_game_emit(self):
         self._new_game_emit_locked = False
+
+    def reload_mods(self) -> None:
+        """Public API: trigger an asynchronous mods rescan."""
+        self._load_mods()
+
+    def get_loaded_mods(self) -> list[ModInfo]:
+        """Public API: return a snapshot of currently loaded mods."""
+        return list(self._mods)
 
     # ── Load ──────────────────────────────────────────────────────────────────
     def _load_mods(self):

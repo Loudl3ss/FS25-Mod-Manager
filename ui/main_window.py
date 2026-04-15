@@ -2,6 +2,8 @@
 """Main application window with sidebar navigation."""
 from __future__ import annotations
 
+import sqlite3
+
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -387,7 +389,7 @@ class MainWindow(QMainWindow):
         )
         self._log_viewer_page = LogViewerPage(self._log_analyzer)
         self._app_settings_page = AppSettingsPage(app_config_manager=self._app_config_manager)
-        self._app_settings_page.rescan_requested.connect(self._mods_page._load_mods)
+        self._app_settings_page.rescan_requested.connect(self._mods_page.reload_mods)
         self._app_settings_page.rescan_requested.connect(self._refresh_library_badges)
         self._app_settings_page.backup_folder_changed.connect(self._on_backup_folder_changed)
         self._app_settings_page.manager_cache_root_changed.connect(self._on_manager_cache_root_changed)
@@ -411,11 +413,11 @@ class MainWindow(QMainWindow):
         return "map" in (getattr(mod, "category", "") or "").lower()
 
     def _refresh_library_badges(self):
-        mods = list(getattr(self._mods_page, "_mods", []))
+        mods = self._mods_page.get_loaded_mods()
         if not mods:
             try:
                 mods = self._mod_manager.get_mods()
-            except Exception:
+            except (OSError, sqlite3.Error):
                 mods = []
 
         map_count = sum(1 for m in mods if self._is_map_mod(m))

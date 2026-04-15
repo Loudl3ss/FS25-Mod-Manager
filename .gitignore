@@ -13,6 +13,7 @@ env/
 # Distribution / packaging
 build/
 dist/
+*.AppImage
 *.egg-info/
 *.spec.bak
 

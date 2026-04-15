@@ -64,6 +64,9 @@ class ScraperWorker(QThread):
         self._session = build_retry_session(user_agent="FS25-Mod-Manager/OnlineScraper")
 
     def _fetch_thumbnail_bytes(self, thumb_url: str, referer_url: str = "") -> bytes:
+        if self.isInterruptionRequested():
+            return b""
+
         cached = self._thumb_cache.get(thumb_url)
         if cached:
             return cached
@@ -82,9 +85,13 @@ class ScraperWorker(QThread):
     def run(self):
         try:
             data = self._scraper.fetch_mods(filter_key=self._filter_key, page=self._page)
+            if self.isInterruptionRequested():
+                return
 
             jobs = []
             for idx, mod in enumerate(data):
+                if self.isInterruptionRequested():
+                    return
                 thumb_url = str(mod.get("thumbnail_url", "")).strip()
                 referer_url = str(mod.get("details_url", "")).strip()
                 mod["thumbnail_data"] = b""
@@ -97,10 +104,18 @@ class ScraperWorker(QThread):
                     for idx, url, referer in jobs
                 }
                 for future in as_completed(future_to_index):
+                    if self.isInterruptionRequested():
+                        return
                     idx = future_to_index[future]
-                    thumb_data = future.result()
+                    try:
+                        thumb_data = future.result()
+                    except Exception as exc:  # pragma: no cover - defensive worker path
+                        logger.warning("Thumbnail fetch job failed idx=%s: %s", idx, exc)
+                        thumb_data = b""
                     data[idx]["thumbnail_data"] = thumb_data
 
+            if self.isInterruptionRequested():
+                return
             self.finished_data.emit(data)
         except Exception as exc:  # pragma: no cover - defensive UI path
             logger.warning("ScraperWorker failed page=%s filter=%s: %s", self._page, self._filter_key, exc)
@@ -121,7 +136,11 @@ class ModDetailWorker(QThread):
 
     def run(self):
         try:
+            if self.isInterruptionRequested():
+                return
             details = self._scraper.fetch_mod_details(self._details_url)
+            if self.isInterruptionRequested():
+                return
             details["id"] = self._mod_id
             self.finished_details.emit(details)
         except Exception as exc:  # pragma: no cover - defensive UI path
@@ -150,12 +169,16 @@ class ModDownloadWorker(QThread):
 
     def run(self):
         try:
+            if self.isInterruptionRequested():
+                return
             saved_path = self._scraper.download_mod(
                 self._download_url,
                 self._target_dir,
                 referer_url=self._referer_url,
                 filename=self._filename,
             )
+            if self.isInterruptionRequested():
+                return
             self.finished_download.emit(saved_path)
         except Exception as exc:  # pragma: no cover - defensive UI path
             logger.warning(
@@ -982,10 +1005,16 @@ class CategoryWorker(QThread):
 
     def run(self):
         try:
+            if self.isInterruptionRequested():
+                return
             categories = self._scraper.fetch_category_tree()
+            if self.isInterruptionRequested():
+                return
             visible_categories: list[dict[str, object]] = []
 
             for category in categories:
+                if self.isInterruptionRequested():
+                    return
                 label = str(category.get("label", "")).strip()
                 filter_key = str(category.get("filter", "")).strip()
                 children = category.get("children", [])
@@ -1023,6 +1052,8 @@ class CategoryWorker(QThread):
                         }
                     )
 
+            if self.isInterruptionRequested():
+                return
             self.finished_categories.emit(visible_categories)
         except Exception as exc:  # pragma: no cover - defensive UI path
             logger.warning("CategoryWorker failed: %s", exc)

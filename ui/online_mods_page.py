@@ -536,6 +536,7 @@ class OnlineModsPage(QWidget):
             "filter": filter_key,
             "label": text,
             "child_filters": child_filters,
+            "children": list(children or []),
         }
 
         if children:
@@ -574,20 +575,7 @@ class OnlineModsPage(QWidget):
             shadow.setColor(QColor(0, 0, 0, 180))
             menu.setGraphicsEffect(shadow)
 
-            for child in children:
-                child_label = str(child.get("label", "")).strip()
-                child_filter = str(child.get("filter", "")).strip()
-                if not child_label or not child_filter:
-                    continue
-                action = menu.addAction(child_label)
-                if action is not None:
-                    action.setCheckable(True)
-                    self._submenu_actions[child_filter] = action
-                    action.triggered.connect(
-                        lambda checked=False, fk=child_filter, lbl=child_label: self._on_category_selected(fk, lbl)
-                    )
             self._category_popup_menus[btn] = menu
-            btn.hovered.connect(lambda b=btn: self._show_subcategory_popup(b))
             btn.clicked.connect(lambda checked=False, b=btn: self._show_subcategory_popup(b))
             def _on_hide(b=btn, m=menu):
                 self._set_button_state(b, "submenuOpen", False)
@@ -600,10 +588,38 @@ class OnlineModsPage(QWidget):
         self.category_layout.addWidget(btn)
         self._category_buttons.append(btn)
 
+    def _populate_subcategory_actions(self, button: HoverCategoryButton, menu: QMenu) -> None:
+        # Populate actions lazily to avoid building every child submenu up front.
+        if bool(menu.property("actionsPopulated")):
+            return
+
+        meta = self._category_button_meta.get(button, {})
+        raw_children = meta.get("children", [])
+        children = raw_children if isinstance(raw_children, list) else []
+
+        for child in children:
+            child_label = str(child.get("label", "")).strip()
+            child_filter = str(child.get("filter", "")).strip()
+            if not child_label or not child_filter:
+                continue
+
+            action = menu.addAction(child_label)
+            if action is None:
+                continue
+            action.setCheckable(True)
+            action.setChecked(child_filter == self._current_filter)
+            self._submenu_actions[child_filter] = action
+            action.triggered.connect(
+                lambda checked=False, fk=child_filter, lbl=child_label: self._on_category_selected(fk, lbl)
+            )
+
+        menu.setProperty("actionsPopulated", True)
+
     def _show_subcategory_popup(self, button: HoverCategoryButton):
         menu = self._category_popup_menus.get(button)
         if menu is None:
             return
+        self._populate_subcategory_actions(button, menu)
         # Close any currently open popup first to avoid Wayland transient parent crash.
         if self._active_popup_menu is not None and self._active_popup_menu is not menu:
             self._active_popup_menu.close()

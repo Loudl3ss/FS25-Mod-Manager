@@ -47,7 +47,7 @@ class SidebarNavButton(QPushButton):
         text_w = fm.horizontalAdvance(count_txt)
         badge_w = max(18, text_w + 10)
         badge_h = 18
-        badge_x = self.width() - badge_w - 14
+        badge_x = self.width() - badge_w - 50
         badge_y = (self.height() - badge_h) // 2
 
         painter.setPen(Qt.PenStyle.NoPen)

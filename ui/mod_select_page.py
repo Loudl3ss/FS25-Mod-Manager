@@ -238,6 +238,6 @@ class ModLoadoutView(QWidget):
                 self.game_created.emit(message)
             else:
                 QMessageBox.critical(self, "Error", message)
-        except Exception as e:
+        except (OSError, RuntimeError, TypeError, ValueError) as e:
             logger.warning("Failed to create game in mod selection step: %s", e)
             QMessageBox.critical(self, "Error", f"Failed to create game: {str(e)}")

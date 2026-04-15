@@ -8,6 +8,10 @@ from urllib.parse import parse_qs, urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
+from core.logging_utils import get_logger
+
+logger = get_logger("core.fs25net_scraper")
+
 
 class FS25NetScraper:
     """Scraper service for FS25.NET FS25 listings/details/downloads."""
@@ -236,7 +240,8 @@ class FS25NetScraper:
             try:
                 response = session.get(url, timeout=20)
                 response.raise_for_status()
-            except requests.RequestException:
+            except requests.RequestException as exc:
+                logger.warning("fetch_mods failed for filter=%s page=%s: %s", filter_key, page, exc)
                 return []
 
         soup = BeautifulSoup(response.text, "html.parser")
@@ -314,7 +319,8 @@ class FS25NetScraper:
             with self._build_session() as session:
                 response = session.get(details_url, timeout=20)
                 response.raise_for_status()
-        except requests.RequestException:
+        except requests.RequestException as exc:
+            logger.warning("fetch_mod_details failed for %s: %s", details_url, exc)
             return {}
 
         soup = BeautifulSoup(response.text, "html.parser")
@@ -434,6 +440,7 @@ class FS25NetScraper:
                 part_path.rename(file_path)
                 return str(file_path)
         except (requests.RequestException, OSError) as exc:
+            logger.warning("download_mod failed for %s: %s", download_url, exc)
             if part_path.exists():
                 part_path.unlink()
             raise
@@ -444,7 +451,8 @@ class FS25NetScraper:
             with self._build_session() as session:
                 response = session.get(self.CATEGORIES_URL, timeout=20)
                 response.raise_for_status()
-        except requests.RequestException:
+        except requests.RequestException as exc:
+            logger.warning("fetch_category_tree failed: %s", exc)
             return self._build_requested_tree({})
 
         soup = BeautifulSoup(response.text, "html.parser")

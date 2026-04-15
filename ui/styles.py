@@ -28,8 +28,8 @@ QMainWindow {
 #Sidebar {
     background-color: #0f172a;
     border-right: 1px solid #1e293b;
-    min-width: 215px;
-    max-width: 215px;
+    min-width: 240px;
+    max-width: 240px;
 }
 
 #SidebarLogo {
@@ -81,7 +81,7 @@ QPushButton#NavBtn[active="true"] {
 }
 
 QPushButton#NavBtn[active="false"] {
-    margin: 2px 28px 2px 8px;
+    margin: 2px 18px 2px 8px;
 }
 
 /* ── Content Area ────────────────────────────────────── */

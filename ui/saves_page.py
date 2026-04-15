@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 from core.game_launcher import GameLauncher
 from core.save_manager import BackupInfo, SaveInfo, SaveManager
 from ui.assets import Icons
+from ui.layout_helpers import save_slot_grid_position
 from ui.widgets import HSeparator, SaveCard, StatCard
 
 
@@ -116,9 +117,7 @@ class SavesPage(QWidget):
             card.restore_requested.connect(self._show_restore_dialog)
             card.delete_requested.connect(self._delete_save)
             card.copy_requested.connect(self._copy_save)
-            slot_index = max(save.slot - 1, 0)
-            column = min(slot_index // 7, 2)
-            row = slot_index % 7
+            row, column = save_slot_grid_position(save.slot)
             self._grid.addWidget(card, row, column)
 
     # ── Actions ───────────────────────────────────────────────────────────────

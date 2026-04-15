@@ -2,6 +2,8 @@
 """Main application window with sidebar navigation."""
 from __future__ import annotations
 
+import sqlite3
+
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -10,7 +12,6 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -38,11 +39,28 @@ from ui.new_game_page import NewGameView
 from ui.online_mods_page import OnlineModsPage
 from ui.radio_settings_page import RadioSettingsPage
 from ui.saves_page import SavesPage
+from ui.style_helpers import refresh_widget_style, set_bool_property
 from ui.widgets import SidebarNavButton
 
 
 
 class MainWindow(QMainWindow):
+    PAGE_MOD_MANAGER = 0
+    PAGE_NEW_GAME = 1
+    PAGE_SAVE_GAMES = 2
+    PAGE_RADIO_SETTINGS = 3
+    PAGE_FAVORITES = 4
+    PAGE_ALL_MODS = 5
+    PAGE_MAPS = 6
+    PAGE_ONLINE_OFFICIAL = 7
+    PAGE_KINGMODS = 8
+    PAGE_FS25NET = 9
+    PAGE_LOG_ANALYZER = 10
+    PAGE_APP_SETTINGS = 11
+    PAGE_ABOUT = 12
+
+    LIBRARY_PAGE_IDS = (PAGE_FAVORITES, PAGE_ALL_MODS, PAGE_MAPS)
+
     def __init__(self, data_path: str):
         super().__init__()
         self._data_path = data_path
@@ -50,7 +68,6 @@ class MainWindow(QMainWindow):
         # ── Backend managers ─────────────────────────────────────────────────
         mods_path = FS25Detector.get_mods_path(data_path)
         self._mods_path = mods_path
-        settings_path = FS25Detector.get_settings_path(data_path)
 
         self._app_config_manager = AppConfigManager(data_path)
         self._manager_home = self._app_config_manager.manager_home
@@ -71,6 +88,23 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
 
+    def _add_sidebar_nav_button(
+        self,
+        layout: QVBoxLayout,
+        text: str,
+        shortcut: str,
+        icon_name: str,
+        page_id: int,
+        icon_size: QSize,
+    ) -> SidebarNavButton:
+        button = SidebarNavButton(text, shortcut)
+        button.setIcon(Icons.get_qicon(icon_name))
+        button.setIconSize(icon_size)
+        button.clicked.connect(lambda: self._switch_page(page_id))
+        layout.addWidget(button)
+        self._nav_buttons.append(button)
+        return button
+
     # ── Build ─────────────────────────────────────────────────────────────────
     def _build_ui(self):
         self.setWindowTitle("FS25 Manager")
@@ -84,6 +118,16 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
+        nav_icon_size = QSize(24, 24)
+        root.addWidget(self._build_sidebar(nav_icon_size))
+        self._build_pages()
+        root.addWidget(self._stack, stretch=1)
+
+        # Select first nav item
+        self._switch_page(self.PAGE_MOD_MANAGER)
+        self._refresh_library_badges()
+
+    def _build_sidebar(self, nav_icon_size: QSize) -> QScrollArea:
         # ── Sidebar ──────────────────────────────────────────────────────────
         sidebar = QWidget()
         sidebar.setObjectName("Sidebar")
@@ -107,120 +151,14 @@ class MainWindow(QMainWindow):
         sub.setObjectName("SidebarSubtitle")
         sb_lay.addWidget(sub)
 
-        # --- Workplace Section ---
-        workplace_label = QLabel("WORKPLACE")
-        workplace_label.setObjectName("SidebarSection")
-        sb_lay.addWidget(workplace_label)
-        workplace_widget = QWidget()
-        workplace_layout = QVBoxLayout(workplace_widget)
-        workplace_layout.setContentsMargins(12, 0, 8, 0)
-        workplace_layout.setSpacing(0)
-        nav_icon_size = QSize(24, 24)
-        self._nav_buttons: list[QPushButton] = []
-        self.btn_mod_manager = SidebarNavButton("Mod Manager", "[ M ]")
-        self.btn_mod_manager.setIcon(Icons.get_qicon(Icons.NAV_MOD_MANAGER))
-        self.btn_mod_manager.setIconSize(nav_icon_size)
-        self.btn_mod_manager.clicked.connect(lambda: self._switch_page(0))
-        workplace_layout.addWidget(self.btn_mod_manager)
-        self._nav_buttons.append(self.btn_mod_manager)
+        self._nav_buttons: list[SidebarNavButton] = []
 
-        self.btn_new_game = SidebarNavButton("New Game", "[ N ]")
-        self.btn_new_game.setIcon(Icons.get_qicon(Icons.NAV_NEW_GAME))
-        self.btn_new_game.setIconSize(nav_icon_size)
-        self.btn_new_game.clicked.connect(lambda: self._switch_page(1))
-        workplace_layout.addWidget(self.btn_new_game)
-        self._nav_buttons.append(self.btn_new_game)
-
-        self.btn_save_games = SidebarNavButton("Save Games", "[ S ]")
-        self.btn_save_games.setIcon(Icons.get_qicon(Icons.NAV_SAVE_GAMES))
-        self.btn_save_games.setIconSize(nav_icon_size)
-        self.btn_save_games.clicked.connect(lambda: self._switch_page(2))
-        workplace_layout.addWidget(self.btn_save_games)
-        self._nav_buttons.append(self.btn_save_games)
-
-        self.btn_radio = SidebarNavButton("Radio Settings", "[ R ]")
-        self.btn_radio.setIcon(Icons.get_qicon(Icons.NAV_ONLINE_BROWSE))
-        self.btn_radio.setIconSize(nav_icon_size)
-        self.btn_radio.clicked.connect(lambda: self._switch_page(3))
-        workplace_layout.addWidget(self.btn_radio)
-        self._nav_buttons.append(self.btn_radio)
-        sb_lay.addWidget(workplace_widget)
-
-        # --- Library Section ---
-        library_label = QLabel("LIBRARY")
-        library_label.setObjectName("SidebarSection")
-        sb_lay.addWidget(library_label)
-        library_widget = QWidget()
-        library_layout = QVBoxLayout(library_widget)
-        library_layout.setContentsMargins(12, 0, 8, 0)
-        library_layout.setSpacing(0)
-        self.btn_favorites = SidebarNavButton("Favourites", "[ F ]")
-        self.btn_favorites.setIcon(Icons.get_qicon(Icons.NAV_FAVORITES))
-        self.btn_favorites.setIconSize(nav_icon_size)
-        self.btn_favorites.clicked.connect(lambda: self._switch_page(4))
-        library_layout.addWidget(self.btn_favorites)
-        self._nav_buttons.append(self.btn_favorites)
-        self.btn_mods = SidebarNavButton("All Mods", "[ A ]")
-        self.btn_mods.setIcon(Icons.get_qicon(Icons.NAV_MODS))
-        self.btn_mods.setIconSize(nav_icon_size)
-        self.btn_mods.clicked.connect(lambda: self._switch_page(5))
-        library_layout.addWidget(self.btn_mods)
-        self._nav_buttons.append(self.btn_mods)
-        self.btn_maps = SidebarNavButton("Maps", "[ P ]")
-        self.btn_maps.setIcon(Icons.get_qicon(Icons.NAV_MAPS))
-        self.btn_maps.setIconSize(nav_icon_size)
-        self.btn_maps.clicked.connect(lambda: self._switch_page(6))
-        library_layout.addWidget(self.btn_maps)
-        self._nav_buttons.append(self.btn_maps)
-        sb_lay.addWidget(library_widget)
-
-        # --- FS25 Section ---
-        online_label = QLabel("Online Mods")
-        online_label.setObjectName("SidebarSection")
-        sb_lay.addWidget(online_label)
-        online_widget = QWidget()
-        online_layout = QVBoxLayout(online_widget)
-        online_layout.setContentsMargins(12, 0, 8, 0)
-        online_layout.setSpacing(0)
-        self.btn_online = SidebarNavButton("FS25 Official", "[ G ]")
-        self.btn_online.setIcon(Icons.get_qicon(Icons.NAV_ONLINE_BROWSE))
-        self.btn_online.setIconSize(nav_icon_size)
-        self.btn_online.clicked.connect(lambda: self._switch_page(7))
-        online_layout.addWidget(self.btn_online)
-        self._nav_buttons.append(self.btn_online)
-
-        self.btn_kingmods = SidebarNavButton("KINGMODS", "[ K ]")
-        self.btn_kingmods.setIcon(Icons.get_qicon(Icons.NAV_ONLINE_BROWSE))
-        self.btn_kingmods.setIconSize(nav_icon_size)
-        self.btn_kingmods.clicked.connect(lambda: self._switch_page(8))
-        online_layout.addWidget(self.btn_kingmods)
-        self._nav_buttons.append(self.btn_kingmods)
-
-        self.btn_fs25net = SidebarNavButton("FS25.NET", "[ N ]")
-        self.btn_fs25net.setIcon(Icons.get_qicon(Icons.NAV_ONLINE_BROWSE))
-        self.btn_fs25net.setIconSize(nav_icon_size)
-        self.btn_fs25net.clicked.connect(lambda: self._switch_page(9))
-        online_layout.addWidget(self.btn_fs25net)
-        self._nav_buttons.append(self.btn_fs25net)
-        sb_lay.addWidget(online_widget)
+        self._build_workplace_section(sb_lay, nav_icon_size)
+        self._build_library_section(sb_lay, nav_icon_size)
+        self._build_online_section(sb_lay, nav_icon_size)
 
         sb_lay.addStretch()
-
-        # --- Tools Section ---
-        tools_label = QLabel("TOOLS")
-        tools_label.setObjectName("SidebarSection")
-        sb_lay.addWidget(tools_label)
-        tools_widget = QWidget()
-        tools_layout = QVBoxLayout(tools_widget)
-        tools_layout.setContentsMargins(12, 0, 8, 0)
-        tools_layout.setSpacing(0)
-        self.btn_log = SidebarNavButton("Log Analyzer", "[ ! ]")
-        self.btn_log.setIcon(Icons.get_qicon(Icons.NAV_LOG_SCANNER))
-        self.btn_log.setIconSize(nav_icon_size)
-        self.btn_log.clicked.connect(lambda: self._switch_page(10))
-        tools_layout.addWidget(self.btn_log)
-        self._nav_buttons.append(self.btn_log)
-        sb_lay.addWidget(tools_widget)
+        self._build_tools_section(sb_lay, nav_icon_size)
 
         sb_lay.addStretch(1)
 
@@ -229,36 +167,7 @@ class MainWindow(QMainWindow):
         self.btn_launch_game.clicked.connect(GameLauncher.launch_steam_game)
         sb_lay.addWidget(self.btn_launch_game)
 
-        # --- Bottom Utility ---
-        # App Settings (just above About)
-        self.btn_app_settings = SidebarNavButton("App Settings", "[ C ]")
-        self.btn_app_settings.setIcon(Icons.get_qicon(Icons.APP_SETTINGS))
-        self.btn_app_settings.setIconSize(nav_icon_size)
-        self.btn_app_settings.clicked.connect(lambda: self._switch_page(11))
-        sb_lay.addWidget(self.btn_app_settings)
-        self._nav_buttons.append(self.btn_app_settings)
-
-        # About (Bottom Utility)
-        self.btn_about = SidebarNavButton("About", "[ I ]")
-        self.btn_about.setIcon(Icons.get_qicon(Icons.NAV_ABOUT))
-        self.btn_about.setIconSize(nav_icon_size)
-        self.btn_about.clicked.connect(lambda: self._switch_page(12))
-        sb_lay.addWidget(self.btn_about)
-        self._nav_buttons.append(self.btn_about)
-
-        divider = QWidget()
-        divider.setFixedHeight(1)
-        divider.setStyleSheet("background: #1e293b;")
-        sb_lay.addWidget(divider)
-
-        # Bottom "Open Folder" button
-        btn_folder = QPushButton("📂  Open Game Folder")
-        btn_folder.setObjectName("ToolBtn")
-        btn_folder.setContentsMargins(8, 4, 8, 4)
-        btn_folder.clicked.connect(self._open_folder)
-        sb_lay.addWidget(btn_folder)
-
-        sb_lay.addSpacing(12)
+        self._build_utility_section(sb_lay, nav_icon_size)
 
         sidebar_scroll = QScrollArea()
         sidebar_scroll.setObjectName("SidebarScroll")
@@ -267,8 +176,169 @@ class MainWindow(QMainWindow):
         sidebar_scroll.setWidgetResizable(True)
         sidebar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         sidebar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        root.addWidget(sidebar_scroll)
+        return sidebar_scroll
 
+    def _build_workplace_section(self, sb_lay: QVBoxLayout, nav_icon_size: QSize) -> None:
+        workplace_label = QLabel("WORKPLACE")
+        workplace_label.setObjectName("SidebarSection")
+        sb_lay.addWidget(workplace_label)
+        workplace_widget = QWidget()
+        workplace_layout = QVBoxLayout(workplace_widget)
+        workplace_layout.setContentsMargins(12, 0, 8, 0)
+        workplace_layout.setSpacing(0)
+        self.btn_mod_manager = self._add_sidebar_nav_button(
+            workplace_layout,
+            "Mod Manager",
+            "[ M ]",
+            Icons.NAV_MOD_MANAGER,
+            self.PAGE_MOD_MANAGER,
+            nav_icon_size,
+        )
+        self.btn_new_game = self._add_sidebar_nav_button(
+            workplace_layout,
+            "New Game",
+            "[ N ]",
+            Icons.NAV_NEW_GAME,
+            self.PAGE_NEW_GAME,
+            nav_icon_size,
+        )
+        self.btn_save_games = self._add_sidebar_nav_button(
+            workplace_layout,
+            "Save Games",
+            "[ S ]",
+            Icons.NAV_SAVE_GAMES,
+            self.PAGE_SAVE_GAMES,
+            nav_icon_size,
+        )
+        self.btn_radio = self._add_sidebar_nav_button(
+            workplace_layout,
+            "Radio Settings",
+            "[ R ]",
+            Icons.NAV_ONLINE_BROWSE,
+            self.PAGE_RADIO_SETTINGS,
+            nav_icon_size,
+        )
+        sb_lay.addWidget(workplace_widget)
+
+    def _build_library_section(self, sb_lay: QVBoxLayout, nav_icon_size: QSize) -> None:
+        library_label = QLabel("LIBRARY")
+        library_label.setObjectName("SidebarSection")
+        sb_lay.addWidget(library_label)
+        library_widget = QWidget()
+        library_layout = QVBoxLayout(library_widget)
+        library_layout.setContentsMargins(12, 0, 8, 0)
+        library_layout.setSpacing(0)
+        self.btn_favorites = self._add_sidebar_nav_button(
+            library_layout,
+            "Favourites",
+            "[ F ]",
+            Icons.NAV_FAVORITES,
+            self.PAGE_FAVORITES,
+            nav_icon_size,
+        )
+        self.btn_mods = self._add_sidebar_nav_button(
+            library_layout,
+            "All Mods",
+            "[ A ]",
+            Icons.NAV_MODS,
+            self.PAGE_ALL_MODS,
+            nav_icon_size,
+        )
+        self.btn_maps = self._add_sidebar_nav_button(
+            library_layout,
+            "Maps",
+            "[ P ]",
+            Icons.NAV_MAPS,
+            self.PAGE_MAPS,
+            nav_icon_size,
+        )
+        sb_lay.addWidget(library_widget)
+
+    def _build_online_section(self, sb_lay: QVBoxLayout, nav_icon_size: QSize) -> None:
+        online_label = QLabel("Online Mods")
+        online_label.setObjectName("SidebarSection")
+        sb_lay.addWidget(online_label)
+        online_widget = QWidget()
+        online_layout = QVBoxLayout(online_widget)
+        online_layout.setContentsMargins(12, 0, 8, 0)
+        online_layout.setSpacing(0)
+        self.btn_online = self._add_sidebar_nav_button(
+            online_layout,
+            "FS25 Official",
+            "[ G ]",
+            Icons.NAV_ONLINE_BROWSE,
+            self.PAGE_ONLINE_OFFICIAL,
+            nav_icon_size,
+        )
+        self.btn_kingmods = self._add_sidebar_nav_button(
+            online_layout,
+            "KINGMODS",
+            "[ K ]",
+            Icons.NAV_ONLINE_BROWSE,
+            self.PAGE_KINGMODS,
+            nav_icon_size,
+        )
+        self.btn_fs25net = self._add_sidebar_nav_button(
+            online_layout,
+            "FS25.NET",
+            "[ N ]",
+            Icons.NAV_ONLINE_BROWSE,
+            self.PAGE_FS25NET,
+            nav_icon_size,
+        )
+        sb_lay.addWidget(online_widget)
+
+    def _build_tools_section(self, sb_lay: QVBoxLayout, nav_icon_size: QSize) -> None:
+        tools_label = QLabel("TOOLS")
+        tools_label.setObjectName("SidebarSection")
+        sb_lay.addWidget(tools_label)
+        tools_widget = QWidget()
+        tools_layout = QVBoxLayout(tools_widget)
+        tools_layout.setContentsMargins(12, 0, 8, 0)
+        tools_layout.setSpacing(0)
+        self.btn_log = self._add_sidebar_nav_button(
+            tools_layout,
+            "Log Analyzer",
+            "[ ! ]",
+            Icons.NAV_LOG_SCANNER,
+            self.PAGE_LOG_ANALYZER,
+            nav_icon_size,
+        )
+        sb_lay.addWidget(tools_widget)
+
+    def _build_utility_section(self, sb_lay: QVBoxLayout, nav_icon_size: QSize) -> None:
+        self.btn_app_settings = self._add_sidebar_nav_button(
+            sb_lay,
+            "App Settings",
+            "[ C ]",
+            Icons.APP_SETTINGS,
+            self.PAGE_APP_SETTINGS,
+            nav_icon_size,
+        )
+
+        self.btn_about = self._add_sidebar_nav_button(
+            sb_lay,
+            "About",
+            "[ I ]",
+            Icons.NAV_ABOUT,
+            self.PAGE_ABOUT,
+            nav_icon_size,
+        )
+
+        divider = QWidget()
+        divider.setFixedHeight(1)
+        divider.setStyleSheet("background: #1e293b;")
+        sb_lay.addWidget(divider)
+
+        btn_folder = QPushButton("📂  Open Game Folder")
+        btn_folder.setObjectName("ToolBtn")
+        btn_folder.setContentsMargins(8, 4, 8, 4)
+        btn_folder.clicked.connect(self._open_folder)
+        sb_lay.addWidget(btn_folder)
+
+        sb_lay.addSpacing(12)
+
+    def _build_pages(self) -> None:
         # ── Stacked content ──────────────────────────────────────────────────
         self._stack = QStackedWidget()
         self._stack.setObjectName("ContentArea")
@@ -319,41 +389,35 @@ class MainWindow(QMainWindow):
         )
         self._log_viewer_page = LogViewerPage(self._log_analyzer)
         self._app_settings_page = AppSettingsPage(app_config_manager=self._app_config_manager)
-        self._app_settings_page.rescan_requested.connect(self._mods_page._load_mods)
+        self._app_settings_page.rescan_requested.connect(self._mods_page.reload_mods)
         self._app_settings_page.rescan_requested.connect(self._refresh_library_badges)
         self._app_settings_page.backup_folder_changed.connect(self._on_backup_folder_changed)
         self._app_settings_page.manager_cache_root_changed.connect(self._on_manager_cache_root_changed)
         self._about_page = AboutPage()
 
-        self._stack.addWidget(self._mods_page)         # Index 0 (Mod Manager)
-        self._stack.addWidget(self._new_game_page)     # Index 1 (New Game)
-        self._stack.addWidget(self._saves_page)        # Index 2 (Save Games)
-        self._stack.addWidget(self._radio_settings_page) # Index 3 (Radio Settings)
-        self._stack.addWidget(self._favorites_page)    # Index 4 (Favorites)
-        self._stack.addWidget(self._all_mods_page)     # Index 5 (All Mods)
-        self._stack.addWidget(self._maps_page)         # Index 6 (Maps)
-        self._stack.addWidget(self._online_mods_page)  # Index 7 (Online Mods - FS25 Official)
-        self._stack.addWidget(self._kingmods_page)     # Index 8 (KINGMODS)
-        self._stack.addWidget(self._fs25net_page)      # Index 9 (FS25.NET)
-        self._stack.addWidget(self._log_viewer_page)   # Index 10 (Log Analyzer)
-        self._stack.addWidget(self._app_settings_page) # Index 11 (App Settings)
-        self._stack.addWidget(self._about_page)        # Index 12 (About)
-
-        root.addWidget(self._stack, stretch=1)
-
-        # Select first nav item
-        self._switch_page(0)
-        self._refresh_library_badges()
+        self._stack.addWidget(self._mods_page)         # PAGE_MOD_MANAGER
+        self._stack.addWidget(self._new_game_page)     # PAGE_NEW_GAME
+        self._stack.addWidget(self._saves_page)        # PAGE_SAVE_GAMES
+        self._stack.addWidget(self._radio_settings_page) # PAGE_RADIO_SETTINGS
+        self._stack.addWidget(self._favorites_page)    # PAGE_FAVORITES
+        self._stack.addWidget(self._all_mods_page)     # PAGE_ALL_MODS
+        self._stack.addWidget(self._maps_page)         # PAGE_MAPS
+        self._stack.addWidget(self._online_mods_page)  # PAGE_ONLINE_OFFICIAL
+        self._stack.addWidget(self._kingmods_page)     # PAGE_KINGMODS
+        self._stack.addWidget(self._fs25net_page)      # PAGE_FS25NET
+        self._stack.addWidget(self._log_viewer_page)   # PAGE_LOG_ANALYZER
+        self._stack.addWidget(self._app_settings_page) # PAGE_APP_SETTINGS
+        self._stack.addWidget(self._about_page)        # PAGE_ABOUT
 
     def _is_map_mod(self, mod) -> bool:
         return "map" in (getattr(mod, "category", "") or "").lower()
 
     def _refresh_library_badges(self):
-        mods = list(getattr(self._mods_page, "_mods", []))
+        mods = self._mods_page.get_loaded_mods()
         if not mods:
             try:
                 mods = self._mod_manager.get_mods()
-            except Exception:
+            except (OSError, sqlite3.Error):
                 mods = []
 
         map_count = sum(1 for m in mods if self._is_map_mod(m))
@@ -375,20 +439,16 @@ class MainWindow(QMainWindow):
         self._stack.setCurrentIndex(index)
         
         # Trigger data population for specific pages
-        if index == 1: # New Game
+        if index == self.PAGE_NEW_GAME:
             self._new_game_page.populate_data()
 
-        if index in (4, 5, 6):
+        if index in self.LIBRARY_PAGE_IDS:
             self._refresh_library_badges()
             
         for i, btn in enumerate(self._nav_buttons):
             active = i == index
-            btn.setProperty("active", "true" if active else "false")
+            set_bool_property(btn, "active", active)
             btn.setChecked(active)
-            style = btn.style()
-            if style is not None:
-                style.unpolish(btn)
-                style.polish(btn)
 
     def _open_folder(self):
         import subprocess
@@ -402,7 +462,7 @@ class MainWindow(QMainWindow):
         if self._opening_new_game:
             return
         self._opening_new_game = True
-        self._switch_page(1)
+        self._switch_page(self.PAGE_NEW_GAME)
         self._new_game_page.open_map_step()
         self._opening_new_game = False
 

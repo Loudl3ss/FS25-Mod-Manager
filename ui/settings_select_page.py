@@ -22,6 +22,26 @@ from core.new_game_session import NewGameSession
 from ui.assets import Icons
 
 
+SECTION_LABEL_STYLE = (
+    "color: #ffffff;"
+    "font-size: 10px;"
+    "font-weight: 700;"
+    "letter-spacing: 1px;"
+)
+
+DIFFICULTY_OPTIONS = [("Easy", 1), ("Normal", 2), ("Hard", 3)]
+TIMESCALE_OPTIONS = ["Real Time", "5x", "15x", "30x", "60x", "120x"]
+AUTOSAVE_OPTIONS = [("Off", 0), ("5 min", 5), ("10 min", 10), ("15 min", 15)]
+STARTING_CASH_OPTIONS = [("100k", 100000), ("500k", 500000), ("1M", 10000000), ("5M", 50000000)]
+STARTING_LOAN_OPTIONS = [("0", 0), ("100k", 100000), ("250k", 250000), ("500k", 500000)]
+TOGGLE_OPTIONS = [("Off", False), ("On", True)]
+SEASONAL_GROWTH_OPTIONS = [("Yes", 1), ("No", 2), ("Paused", 3)]
+DISASTER_DESTRUCTION_OPTIONS = [("Disabled", 0), ("Visuals Only", 1), ("Enabled", 2)]
+DIRT_OPTIONS = [("Normal", 1), ("Fast", 2), ("Slow", 3), ("Off", 4)]
+FUEL_USAGE_OPTIONS = [("Low", 1), ("Normal", 2), ("High", 3)]
+AI_REFILL_OPTIONS = [("Off", 0), ("Buy", 1)]
+
+
 class SettingsGroupWidget(QFrame):
     """A styled section container for grouped settings."""
 
@@ -169,74 +189,22 @@ class GameplaySettingsView(QWidget):
 
         content_layout.addWidget(header)
 
-        general_label = QLabel("· GENERAL")
-        general_label.setStyleSheet(
-            "color: #ffffff;"
-            "font-size: 10px;"
-            "font-weight: 700;"
-            "letter-spacing: 1px;"
-        )
-        content_layout.addWidget(general_label)
-
-        general_group = self._build_general_group()
-        content_layout.addWidget(general_group)
-
-        seasons_label = QLabel("· SEASONS")
-        seasons_label.setStyleSheet(
-            "color: #ffffff;"
-            "font-size: 10px;"
-            "font-weight: 700;"
-            "letter-spacing: 1px;"
-            "margin-top: 20px;"
-        )
-        content_layout.addWidget(seasons_label)
-
-        seasons_group = self._build_seasons_group()
-        content_layout.addWidget(seasons_group)
-
-        crops_label = QLabel("· CROPS AND GROWTH")
-        crops_label.setStyleSheet(
-            "color: #ffffff;"
-            "font-size: 10px;"
-            "font-weight: 700;"
-            "letter-spacing: 1px;"
-            "margin-top: 20px;"
-        )
-        content_layout.addWidget(crops_label)
-
-        crops_group = self._build_crops_growth_group()
-        content_layout.addWidget(crops_group)
-
-        vehicle_label = QLabel("· VEHICLE CONTROLS")
-        vehicle_label.setStyleSheet(
-            "color: #ffffff;"
-            "font-size: 10px;"
-            "font-weight: 700;"
-            "letter-spacing: 1px;"
-            "margin-top: 20px;"
-        )
-        content_layout.addWidget(vehicle_label)
-
-        vehicle_group = self._build_vehicle_controls_group()
-        content_layout.addWidget(vehicle_group)
-
-        ai_label = QLabel("· AI WORKERS")
-        ai_label.setStyleSheet(
-            "color: #ffffff;"
-            "font-size: 10px;"
-            "font-weight: 700;"
-            "letter-spacing: 1px;"
-            "margin-top: 20px;"
-        )
-        content_layout.addWidget(ai_label)
-
-        ai_group = self._build_ai_workers_group()
-        content_layout.addWidget(ai_group)
+        self._add_settings_section(content_layout, "GENERAL", self._build_general_group)
+        self._add_settings_section(content_layout, "SEASONS", self._build_seasons_group)
+        self._add_settings_section(content_layout, "CROPS AND GROWTH", self._build_crops_growth_group)
+        self._add_settings_section(content_layout, "VEHICLE CONTROLS", self._build_vehicle_controls_group)
+        self._add_settings_section(content_layout, "AI WORKERS", self._build_ai_workers_group)
 
         content_layout.addStretch()
         scroll.setWidget(content)
         root_layout.addWidget(scroll)
         root_layout.addWidget(nav_bar)
+
+    def _add_settings_section(self, content_layout: QVBoxLayout, title: str, builder) -> None:
+        label = QLabel(f"· {title}")
+        label.setStyleSheet(SECTION_LABEL_STYLE)
+        content_layout.addWidget(label)
+        content_layout.addWidget(builder())
 
     def _build_general_group(self) -> SettingsGroupWidget:
         general = SettingsGroupWidget("GENERAL", embed_title=False)
@@ -245,45 +213,43 @@ class GameplaySettingsView(QWidget):
         general.add_row("Farm Name", self.savegame_name_input)
 
         self.difficulty_group = self._make_segmented_button_group(
-            [("Easy", 1), ("Normal", 2), ("Hard", 3)],
+            DIFFICULTY_OPTIONS,
             "difficulty",
         )
         general.add_row("Economic Difficulty", self.difficulty_group)
 
         self.time_scale_dropdown = self._make_dropdown(
-            ["Real Time", "5x", "15x", "30x", "60x", "120x"],
+            TIMESCALE_OPTIONS,
             "timeScale",
         )
         general.add_row("Timescale", self.time_scale_dropdown)
 
         self.autosave_group = self._make_segmented_button_group(
-            [("Off", 0), ("5 min", 5), ("10 min", 10), ("15 min", 15)],
+            AUTOSAVE_OPTIONS,
             "autoSaveInterval",
         )
         general.add_row("Autosave Interval", self.autosave_group)
 
         self.starting_cash_widget = self._make_segmented_with_custom(
-            [("100k", 100000), ("500k", 500000), ("1M", 10000000), ("5M", 50000000)],
+            STARTING_CASH_OPTIONS,
             "money",
-            prefix="$",
         )
         general.add_row("Starting Cash", self.starting_cash_widget)
 
         self.starting_loan_widget = self._make_segmented_with_custom(
-            [("0", 0), ("100k", 100000), ("250k", 250000), ("500k", 500000)],
+            STARTING_LOAN_OPTIONS,
             "loan",
-            prefix="$",
         )
         general.add_row("Starting Loan", self.starting_loan_widget)
 
         self.traffic_group = self._make_segmented_button_group(
-            [("Off", False), ("On", True)],
+            TOGGLE_OPTIONS,
             "trafficEnabled",
         )
         general.add_row("Traffic", self.traffic_group)
 
         self.snow_group = self._make_segmented_button_group(
-            [("Off", False), ("On", True)],
+            TOGGLE_OPTIONS,
             "snowEnabled",
         )
         general.add_row("Snow", self.snow_group)
@@ -294,7 +260,7 @@ class GameplaySettingsView(QWidget):
         seasons = SettingsGroupWidget("SEASONS", embed_title=False)
 
         self.seasonal_growth_group = self._make_segmented_button_group(
-            [("Yes", 1), ("No", 2), ("Paused", 3)],
+            SEASONAL_GROWTH_OPTIONS,
             "seasonalGrowth",
         )
         seasons.add_row("Season Growth", self.seasonal_growth_group)
@@ -303,7 +269,7 @@ class GameplaySettingsView(QWidget):
         seasons.add_row("Days Per Month", self.days_per_month_widget)
 
         self.fixed_visual_month_group = self._make_segmented_button_group(
-            [("Off", False), ("On", True)],
+            TOGGLE_OPTIONS,
             "fixedVisualMonth",
         )
         seasons.add_row("Fixed Visual Month", self.fixed_visual_month_group)
@@ -314,37 +280,37 @@ class GameplaySettingsView(QWidget):
         crops = SettingsGroupWidget("CROPS AND GROWTH", embed_title=False)
 
         self.crop_destruction_group = self._make_segmented_button_group(
-            [("Off", False), ("On", True)],
+            TOGGLE_OPTIONS,
             "cropDestruction",
         )
         crops.add_row("Crop Destruction", self.crop_destruction_group)
 
         self.plowing_required_group = self._make_segmented_button_group(
-            [("Off", False), ("On", True)],
+            TOGGLE_OPTIONS,
             "plowingRequired",
         )
         crops.add_row("Periodic Plowing Required", self.plowing_required_group)
 
         self.fieldstone_group = self._make_segmented_button_group(
-            [("Off", False), ("On", True)],
+            TOGGLE_OPTIONS,
             "fieldstoneEnabled",
         )
         crops.add_row("Fieldstone", self.fieldstone_group)
 
         self.lime_required_group = self._make_segmented_button_group(
-            [("Off", False), ("On", True)],
+            TOGGLE_OPTIONS,
             "limeRequired",
         )
         crops.add_row("Lime Required", self.lime_required_group)
 
         self.weed_group = self._make_segmented_button_group(
-            [("Off", False), ("On", True)],
+            TOGGLE_OPTIONS,
             "weedsEnabled",
         )
         crops.add_row("Weed", self.weed_group)
 
         self.disaster_destruction_group = self._make_segmented_button_group(
-            [("Disabled", 0), ("Visuals Only", 1), ("Enabled", 2)],
+            DISASTER_DESTRUCTION_OPTIONS,
             "disasterDestruction",
         )
         crops.add_row("Disaster Destruction", self.disaster_destruction_group)
@@ -355,31 +321,31 @@ class GameplaySettingsView(QWidget):
         vehicles = SettingsGroupWidget("VEHICLE CONTROLS", embed_title=False)
 
         self.dirt_group = self._make_segmented_button_group(
-            [("Normal", 1), ("Fast", 2), ("Slow", 3), ("Off", 4)],
+            DIRT_OPTIONS,
             "dirtInterval",
         )
         vehicles.add_row("Dirt", self.dirt_group)
 
         self.auto_engine_group = self._make_segmented_button_group(
-            [("Off", False), ("On", True)],
+            TOGGLE_OPTIONS,
             "autoEngineStart",
         )
         vehicles.add_row("Automatic Engine Start", self.auto_engine_group)
 
         self.stop_go_group = self._make_segmented_button_group(
-            [("Off", False), ("On", True)],
+            TOGGLE_OPTIONS,
             "stopAndGoBraking",
         )
         vehicles.add_row("Stop & Go Braking", self.stop_go_group)
 
         self.trailer_fill_group = self._make_segmented_button_group(
-            [("Off", False), ("On", True)],
+            TOGGLE_OPTIONS,
             "trailerFillLimit",
         )
         vehicles.add_row("Trailer Fill Limit", self.trailer_fill_group)
 
         self.fuel_usage_group = self._make_segmented_button_group(
-            [("Low", 1), ("Normal", 2), ("High", 3)],
+            FUEL_USAGE_OPTIONS,
             "fuelUsage",
         )
         vehicles.add_row("Fuel Usage", self.fuel_usage_group)
@@ -390,31 +356,31 @@ class GameplaySettingsView(QWidget):
         ai = SettingsGroupWidget("AI WORKERS", embed_title=False)
 
         self.ai_fuel_group = self._make_segmented_button_group(
-            [("Off", 0), ("Buy", 1)],
+            AI_REFILL_OPTIONS,
             "aiRefillFuel",
         )
         ai.add_row("AI Worker Refill - Fuel", self.ai_fuel_group)
 
         self.ai_seeds_group = self._make_segmented_button_group(
-            [("Off", 0), ("Buy", 1)],
+            AI_REFILL_OPTIONS,
             "aiRefillSeeds",
         )
         ai.add_row("AI Worker Refill - Seeds", self.ai_seeds_group)
 
         self.ai_fertilizer_group = self._make_segmented_button_group(
-            [("Off", 0), ("Buy", 1)],
+            AI_REFILL_OPTIONS,
             "aiRefillFertilizer",
         )
         ai.add_row("AI Worker Refill - Fertilizer", self.ai_fertilizer_group)
 
         self.ai_slurry_group = self._make_segmented_button_group(
-            [("Off", 0), ("Buy", 1)],
+            AI_REFILL_OPTIONS,
             "aiRefillSlurry",
         )
         ai.add_row("AI Worker Refill - Slurry", self.ai_slurry_group)
 
         self.ai_manure_group = self._make_segmented_button_group(
-            [("Off", 0), ("Buy", 1)],
+            AI_REFILL_OPTIONS,
             "aiRefillManure",
         )
         ai.add_row("AI Worker Refill - Manure", self.ai_manure_group)
@@ -461,7 +427,7 @@ class GameplaySettingsView(QWidget):
         )
         return combo
 
-    def _make_segmented_with_custom(self, options: list[tuple[str, int]], setting_key: str, prefix: str = "") -> QWidget:
+    def _make_segmented_with_custom(self, options: list[tuple[str, int]], setting_key: str) -> QWidget:
         container = QWidget()
         layout = QHBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -641,89 +607,3 @@ class GameplaySettingsView(QWidget):
     def showEvent(self, event):
         super().showEvent(event)
         self._load_values()
-
-    def _on_difficulty_changed(self, value):
-        """Update session when difficulty changes."""
-        self.session.settings["difficulty"] = value
-
-    def _on_seasons_changed(self, value):
-        """Update session when seasons change."""
-        self.session.settings["seasons"] = value
-
-    def _on_econ_changed(self, value):
-        """Update session when economy setting changes."""
-        self.session.settings["economicSystem"] = value
-
-    def _on_season_length_changed(self, value):
-        self.session.settings["seasonLength"] = value
-
-    def _on_crop_growth_changed(self, value):
-        self.session.settings["cropGrowth"] = value
-
-    def _on_fertilizer_changed(self, value):
-        self.session.settings["fertilizerRequirement"] = value
-
-    def _on_vehicle_control_changed(self, value):
-        self.session.settings["vehicleControl"] = value
-
-    def _on_auto_steer_changed(self, value):
-        self.session.settings["autoSteer"] = value
-
-    def _on_ai_workers_changed(self, value):
-        self.session.settings["aiWorkers"] = value
-
-    def _on_ai_difficulty_changed(self, value):
-        self.session.settings["aiDifficulty"] = value
-
-    def showEvent(self, event):
-        """Restore previous settings when view is shown."""
-        super().showEvent(event)
-        if "difficulty" in self.session.settings:
-            idx = self.difficulty_combo.findText(self.session.settings["difficulty"])
-            if idx >= 0:
-                self.difficulty_combo.setCurrentIndex(idx)
-
-        if "seasons" in self.session.settings:
-            idx = self.seasons_combo.findText(self.session.settings["seasons"])
-            if idx >= 0:
-                self.seasons_combo.setCurrentIndex(idx)
-
-        if "seasonLength" in self.session.settings:
-            idx = self.season_length_combo.findText(self.session.settings["seasonLength"])
-            if idx >= 0:
-                self.season_length_combo.setCurrentIndex(idx)
-
-        if "economicSystem" in self.session.settings:
-            idx = self.econ_combo.findText(self.session.settings["economicSystem"])
-            if idx >= 0:
-                self.econ_combo.setCurrentIndex(idx)
-
-        if "cropGrowth" in self.session.settings:
-            idx = self.crop_growth_combo.findText(self.session.settings["cropGrowth"])
-            if idx >= 0:
-                self.crop_growth_combo.setCurrentIndex(idx)
-
-        if "fertilizerRequirement" in self.session.settings:
-            idx = self.fertilizer_combo.findText(self.session.settings["fertilizerRequirement"])
-            if idx >= 0:
-                self.fertilizer_combo.setCurrentIndex(idx)
-
-        if "vehicleControl" in self.session.settings:
-            idx = self.vehicle_control_combo.findText(self.session.settings["vehicleControl"])
-            if idx >= 0:
-                self.vehicle_control_combo.setCurrentIndex(idx)
-
-        if "autoSteer" in self.session.settings:
-            idx = self.auto_steer_combo.findText(self.session.settings["autoSteer"])
-            if idx >= 0:
-                self.auto_steer_combo.setCurrentIndex(idx)
-
-        if "aiWorkers" in self.session.settings:
-            idx = self.ai_workers_combo.findText(self.session.settings["aiWorkers"])
-            if idx >= 0:
-                self.ai_workers_combo.setCurrentIndex(idx)
-
-        if "aiDifficulty" in self.session.settings:
-            idx = self.ai_difficulty_combo.findText(self.session.settings["aiDifficulty"])
-            if idx >= 0:
-                self.ai_difficulty_combo.setCurrentIndex(idx)

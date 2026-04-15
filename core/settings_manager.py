@@ -3,6 +3,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from core.logging_utils import get_logger
+
+
+logger = get_logger("settings")
+
 
 @dataclass
 class GameSettings:
@@ -39,6 +44,26 @@ class SettingsManager:
     def __init__(self, path: str):
         self.path = path
 
+    @staticmethod
+    def _parse_int(value: str | None, default: int) -> int:
+        try:
+            return int(value) if value is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _parse_float(value: str | None, default: float) -> float:
+        try:
+            return float(value) if value is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _parse_bool(value: str | None, default: bool) -> bool:
+        if value is None:
+            return default
+        return value.lower() in ("true", "1", "yes")
+
     def load(self) -> GameSettings:
         s = GameSettings(_path=self.path)
         p = Path(self.path)
@@ -48,34 +73,20 @@ class SettingsManager:
             tree = ET.parse(str(p))
             root = tree.getroot()
 
-            def gi(tag, default):
-                val = root.findtext(tag)
-                return int(val) if val is not None else default
-
-            def gf(tag, default):
-                val = root.findtext(tag)
-                return float(val) if val is not None else default
-
-            def gb(tag, default):
-                val = root.findtext(tag)
-                if val is None:
-                    return default
-                return val.lower() in ("true", "1", "yes")
-
-            s.difficulty = gi("difficulty", 2)
-            s.economy_difficulty = gi("economyDifficulty", 2)
-            s.loan_interest_rate = gf("loanAnnualInterestRate", 6.0)
-            s.price_change_range = gf("priceChangeRange", 0.2)
-            s.fuel_usage = gi("fuelUsage", 2)
-            s.dirt_interval = gi("dirtInterval", 2)
-            s.vehicle_damage_age = gi("vehicleDamageAge", 2)
-            s.plowing_required = gb("plowingRequiredEnabled", False)
-            s.stones_enabled = gb("stoneEnabled", False)
-            s.weeds_enabled = gb("weedsEnabled", False)
-            s.lime_required = gb("limeRequired", False)
-            s.snow_enabled = gb("isSnowEnabled", True)
-        except Exception as e:
-            print(f"Settings load error: {e}")
+            s.difficulty = self._parse_int(root.findtext("difficulty"), 2)
+            s.economy_difficulty = self._parse_int(root.findtext("economyDifficulty"), 2)
+            s.loan_interest_rate = self._parse_float(root.findtext("loanAnnualInterestRate"), 6.0)
+            s.price_change_range = self._parse_float(root.findtext("priceChangeRange"), 0.2)
+            s.fuel_usage = self._parse_int(root.findtext("fuelUsage"), 2)
+            s.dirt_interval = self._parse_int(root.findtext("dirtInterval"), 2)
+            s.vehicle_damage_age = self._parse_int(root.findtext("vehicleDamageAge"), 2)
+            s.plowing_required = self._parse_bool(root.findtext("plowingRequiredEnabled"), False)
+            s.stones_enabled = self._parse_bool(root.findtext("stoneEnabled"), False)
+            s.weeds_enabled = self._parse_bool(root.findtext("weedsEnabled"), False)
+            s.lime_required = self._parse_bool(root.findtext("limeRequired"), False)
+            s.snow_enabled = self._parse_bool(root.findtext("isSnowEnabled"), True)
+        except (ET.ParseError, OSError, TypeError, ValueError) as e:
+            logger.warning("Settings load error: %s", e)
         return s
 
     def save(self, s: GameSettings) -> bool:
@@ -110,6 +121,6 @@ class SettingsManager:
             ET.indent(tree, space="    ")
             tree.write(str(p), encoding="utf-8", xml_declaration=True)
             return True
-        except Exception as e:
-            print(f"Settings save error: {e}")
+        except (ET.ParseError, OSError, TypeError, ValueError) as e:
+            logger.warning("Settings save error: %s", e)
             return False

@@ -7,8 +7,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from core.logging_utils import get_logger
 from core.new_game_session import NewGameSession
 from core.xml_generator import CareerXmlBuilder
+
+
+logger = get_logger("save_manager")
 
 
 @dataclass
@@ -90,26 +94,35 @@ class SaveManager:
             info.save_date = gt("saveDateFormatted") or gt("creationDate") or ""
             info.game_version = gt("gameVersionNumber") or ""
 
-            try:
-                info.play_time = float(gt("playTime", "0"))
-            except Exception:
-                info.play_time = 0.0
+            info.play_time = self._safe_float(gt("playTime", "0"), default=0.0)
 
             # Money from playerFarm element
             pf = root.find(".//playerFarm")
             if pf is not None:
-                try:
-                    info.money = float(pf.get("money", "0"))
-                except Exception:
-                    pass
+                info.money = self._safe_float(pf.get("money", "0"), default=0.0)
             if info.money == 0:
-                try:
-                    info.money = float(gt("money", "0"))
-                except Exception:
-                    pass
-        except Exception as e:
-            print(f"Save parse error slot {info.slot}: {e}")
+                info.money = self._safe_float(gt("money", "0"), default=0.0)
+        except (ET.ParseError, OSError, AttributeError, TypeError, ValueError) as e:
+            logger.warning("Save parse error slot %s: %s", info.slot, e)
             info.farm_name = f"Save {info.slot}"
+
+    @staticmethod
+    def _safe_float(value: object, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _cleanup_partial_save(self, slot: int | None) -> None:
+        if slot is None:
+            return
+        try:
+            save_path = os.path.join(self.base_path, f"savegame{slot}")
+            if os.path.isdir(save_path):
+                shutil.rmtree(save_path)
+        except OSError:
+            # Best-effort cleanup should never mask original error.
+            pass
 
     def backup_save(self, slot: int) -> tuple[bool, str]:
         save_path = os.path.join(self.base_path, f"savegame{slot}")
@@ -127,7 +140,7 @@ class SaveManager:
                         rel = os.path.relpath(full, save_path)
                         zf.write(full, rel)
             return True, zip_path
-        except Exception as e:
+        except (OSError, RuntimeError, zipfile.BadZipFile, ValueError) as e:
             return False, str(e)
 
     def restore_save(self, path: str, slot: int) -> tuple[bool, str]:
@@ -146,7 +159,7 @@ class SaveManager:
                 return False, "Unsupported backup format or path does not exist."
 
             return True, "Restored successfully"
-        except Exception as e:
+        except (OSError, shutil.Error, zipfile.BadZipFile, ValueError) as e:
             return False, str(e)
 
     def delete_save(self, slot: int) -> tuple[bool, str]:
@@ -160,7 +173,7 @@ class SaveManager:
                 else:
                     os.remove(entry.path)
             return True, "Deleted"
-        except Exception as e:
+        except OSError as e:
             return False, str(e)
 
     def copy_save(self, src_slot: int, dst_slot: int) -> tuple[bool, str]:
@@ -175,7 +188,7 @@ class SaveManager:
                 shutil.rmtree(dst_path)
             shutil.copytree(src_path, dst_path)
             return True, f"Copied to Slot {dst_slot}"
-        except Exception as e:
+        except (OSError, shutil.Error) as e:
             return False, str(e)
 
     def get_backups(self, slot: Optional[int] = None) -> list[BackupInfo]:
@@ -216,7 +229,7 @@ class SaveManager:
             else:
                 os.remove(path)
             return True
-        except Exception:
+        except OSError:
             return False
 
     def finalize_new_game(self, session: NewGameSession, mod_manager=None) -> tuple[bool, str]:
@@ -326,14 +339,8 @@ class SaveManager:
             
             return True, f"New game created in save slot {target_slot}"
         
-        except Exception as e:
-            # Cleanup on failure
-            try:
-                save_path = os.path.join(self.base_path, f"savegame{target_slot}")
-                if os.path.isdir(save_path):
-                    shutil.rmtree(save_path)
-            except Exception:
-                pass
+        except (OSError, shutil.Error, ET.ParseError, TypeError, ValueError) as e:
+            self._cleanup_partial_save(target_slot)
             return False, f"Failed to create game: {str(e)}"
 
     def _generate_career_savegame_xml(

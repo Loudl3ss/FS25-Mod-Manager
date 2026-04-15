@@ -9,11 +9,16 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 
+from core.logging_utils import get_logger
 from core.mod_manager import ModInfo
 from core.new_game_session import NewGameSession
 from core.thumbnail_loader import ThumbnailLoader
 from ui.mod_grid import ModCard, ResponsiveModGrid
 from ui.assets import Icons
+from ui.style_helpers import set_bool_property
+
+
+logger = get_logger("ui.mod_select")
 
 
 class ModLoadoutView(QWidget):
@@ -190,7 +195,7 @@ class ModLoadoutView(QWidget):
             mod.category,
             thumbnail_id=getattr(mod, "thumbnail_id", ""),
         )
-        if hasattr(card, "fav_btn"):
+        if getattr(card, "fav_btn", None) is not None:
             card.fav_btn.hide()
         card.modClicked.connect(self._on_card_clicked)
         self._mod_cards[mod.id] = card
@@ -214,11 +219,7 @@ class ModLoadoutView(QWidget):
 
     @staticmethod
     def _apply_selected_style(card: ModCard, selected: bool):
-        card.setProperty("selectedForGame", "true" if selected else "false")
-        style = card.style()
-        if style is not None:
-            style.unpolish(card)
-            style.polish(card)
+        set_bool_property(card, "selectedForGame", selected)
 
     def _on_create_clicked(self):
         """Create the new game save."""
@@ -238,4 +239,5 @@ class ModLoadoutView(QWidget):
             else:
                 QMessageBox.critical(self, "Error", message)
         except Exception as e:
+            logger.warning("Failed to create game in mod selection step: %s", e)
             QMessageBox.critical(self, "Error", f"Failed to create game: {str(e)}")

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import subprocess
+from typing import Sequence
 
 
 class GameLauncher:
@@ -10,34 +11,38 @@ class GameLauncher:
     FS25_APP_ID = "2300320"
 
     @classmethod
+    def _launch_strategies(cls) -> tuple[tuple[str, tuple[str, ...]], ...]:
+        """Ordered command strategies for Linux desktop environments."""
+        return (
+            ("Steam CLI", ("steam", "-applaunch", cls.FS25_APP_ID)),
+            (
+                "Distrobox Host",
+                ("distrobox-host-exec", "steam", "-applaunch", cls.FS25_APP_ID),
+            ),
+            (
+                "Flatpak",
+                ("flatpak", "run", "com.valvesoftware.Steam", "-applaunch", cls.FS25_APP_ID),
+            ),
+        )
+
+    @staticmethod
+    def _launch_command(command: Sequence[str]) -> None:
+        subprocess.Popen(
+            list(command),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+    @classmethod
     def launch_steam_game(cls) -> tuple[bool, str]:
         """Launch FS25 through Steam using available Linux strategies."""
-        try:
-            subprocess.Popen(
-                ["steam", "-applaunch", cls.FS25_APP_ID],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            return True, "Game launch started (Steam CLI)..."
-        except FileNotFoundError:
-            pass
+        for strategy_name, command in cls._launch_strategies():
+            try:
+                cls._launch_command(command)
+                return True, f"Game launch started ({strategy_name})..."
+            except FileNotFoundError:
+                continue
+            except Exception as exc:
+                return False, f"Failed to launch game via {strategy_name}: {exc}"
 
-        try:
-            subprocess.Popen(
-                ["distrobox-host-exec", "steam", "-applaunch", cls.FS25_APP_ID],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            return True, "Game launch started (Distrobox Host)..."
-        except FileNotFoundError:
-            pass
-
-        try:
-            subprocess.Popen(
-                ["flatpak", "run", "com.valvesoftware.Steam", "-applaunch", cls.FS25_APP_ID],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            return True, "Game launch started (Flatpak)..."
-        except Exception as exc:
-            return False, f"Failed to launch game: {exc}"
+        return False, "Failed to launch game: no supported Steam command found"

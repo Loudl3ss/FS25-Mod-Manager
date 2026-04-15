@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import suppress
 from typing import Any, Callable
 
 from PyQt6.QtCore import QPoint, Qt, QThread, pyqtSignal
@@ -21,13 +22,17 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from core.logging_utils import get_logger
 from core.online_scraper import FarmingSimulatorScraper
 from core.online_thumbnail_cache import OnlineThumbnailCache
 from ui.mod_grid import ModCard, ResponsiveModGrid
+from ui.network_helpers import build_retry_session
+from ui.style_helpers import refresh_widget_style, set_bool_property
 
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util import Retry
+
+
+logger = get_logger("ui.online_mods")
 
 
 class HoverCategoryButton(QPushButton):
@@ -56,25 +61,12 @@ class ScraperWorker(QThread):
         self._filter_key = filter_key
         self._scraper = scraper_factory()
         self._thumb_cache = OnlineThumbnailCache()
-        self._session = self._build_http_session()
-
-    def _build_http_session(self) -> requests.Session:
-        session = requests.Session()
-        retry = Retry(
-            total=3,
-            connect=3,
-            read=3,
-            backoff_factor=0.6,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=frozenset(["GET"]),
-        )
-        adapter = HTTPAdapter(max_retries=retry, pool_connections=10, pool_maxsize=10)
-        session.mount("http://", adapter)
-        session.mount("https://", adapter)
-        session.headers.update({"User-Agent": "FS25-Mod-Manager/OnlineScraper"})
-        return session
+        self._session = build_retry_session(user_agent="FS25-Mod-Manager/OnlineScraper")
 
     def _fetch_thumbnail_bytes(self, thumb_url: str, referer_url: str = "") -> bytes:
+        if self.isInterruptionRequested():
+            return b""
+
         cached = self._thumb_cache.get(thumb_url)
         if cached:
             return cached
@@ -87,15 +79,19 @@ class ScraperWorker(QThread):
             if data:
                 self._thumb_cache.set(thumb_url, data)
             return data
-        except Exception:
+        except requests.RequestException:
             return b""
 
     def run(self):
         try:
             data = self._scraper.fetch_mods(filter_key=self._filter_key, page=self._page)
+            if self.isInterruptionRequested():
+                return
 
             jobs = []
             for idx, mod in enumerate(data):
+                if self.isInterruptionRequested():
+                    return
                 thumb_url = str(mod.get("thumbnail_url", "")).strip()
                 referer_url = str(mod.get("details_url", "")).strip()
                 mod["thumbnail_data"] = b""
@@ -108,12 +104,21 @@ class ScraperWorker(QThread):
                     for idx, url, referer in jobs
                 }
                 for future in as_completed(future_to_index):
+                    if self.isInterruptionRequested():
+                        return
                     idx = future_to_index[future]
-                    thumb_data = future.result()
+                    try:
+                        thumb_data = future.result()
+                    except Exception as exc:  # pragma: no cover - defensive worker path
+                        logger.warning("Thumbnail fetch job failed idx=%s: %s", idx, exc)
+                        thumb_data = b""
                     data[idx]["thumbnail_data"] = thumb_data
 
+            if self.isInterruptionRequested():
+                return
             self.finished_data.emit(data)
         except Exception as exc:  # pragma: no cover - defensive UI path
+            logger.warning("ScraperWorker failed page=%s filter=%s: %s", self._page, self._filter_key, exc)
             self.error_occurred.emit(str(exc))
         finally:
             self._session.close()
@@ -131,10 +136,15 @@ class ModDetailWorker(QThread):
 
     def run(self):
         try:
+            if self.isInterruptionRequested():
+                return
             details = self._scraper.fetch_mod_details(self._details_url)
+            if self.isInterruptionRequested():
+                return
             details["id"] = self._mod_id
             self.finished_details.emit(details)
         except Exception as exc:  # pragma: no cover - defensive UI path
+            logger.warning("ModDetailWorker failed mod_id=%s url=%s: %s", self._mod_id, self._details_url, exc)
             self.error_occurred.emit(str(exc))
 
 
@@ -159,14 +169,25 @@ class ModDownloadWorker(QThread):
 
     def run(self):
         try:
+            if self.isInterruptionRequested():
+                return
             saved_path = self._scraper.download_mod(
                 self._download_url,
                 self._target_dir,
                 referer_url=self._referer_url,
                 filename=self._filename,
             )
+            if self.isInterruptionRequested():
+                return
             self.finished_download.emit(saved_path)
         except Exception as exc:  # pragma: no cover - defensive UI path
+            logger.warning(
+                "ModDownloadWorker failed url=%s target_dir=%s filename=%s: %s",
+                self._download_url,
+                self._target_dir,
+                self._filename,
+                exc,
+            )
             self.error_occurred.emit(str(exc))
 
 
@@ -596,11 +617,7 @@ class OnlineModsPage(QWidget):
         menu.popup(global_pos)
 
     def _set_button_state(self, button: HoverCategoryButton, key: str, enabled: bool):
-        button.setProperty(key, "true" if enabled else "false")
-        style = button.style()
-        if style is not None:
-            style.unpolish(button)
-            style.polish(button)
+        set_bool_property(button, key, enabled)
 
     def _set_active_category(self, filter_key: str):
         for btn in self._category_buttons:
@@ -609,12 +626,8 @@ class OnlineModsPage(QWidget):
             raw_child_filters = meta.get("child_filters", [])
             child_filters = raw_child_filters if isinstance(raw_child_filters, list) else []
             active = direct_filter == filter_key or filter_key in child_filters
-            btn.setProperty("active", "true" if active else "false")
+            set_bool_property(btn, "active", active)
             btn.setChecked(active)
-            style = btn.style()
-            if style is not None:
-                style.unpolish(btn)
-                style.polish(btn)
 
         for child_filter, action in self._submenu_actions.items():
             action.setChecked(child_filter == filter_key)
@@ -632,12 +645,21 @@ class OnlineModsPage(QWidget):
         self._submenu_actions.clear()
 
     def _load_categories(self):
+        if self._category_worker is not None and self._category_worker.isRunning():
+            return
+
         self.category_status_label.setText("Wait ... Loading mods")
         self.category_status_label.show()
         self._category_worker = CategoryWorker(self._scraper_factory)
         self._category_worker.finished_categories.connect(self._on_categories_loaded)
         self._category_worker.error_occurred.connect(self._on_categories_error)
+        self._category_worker.finished.connect(self._on_category_worker_finished)
         self._category_worker.start()
+
+    def _on_category_worker_finished(self):
+        if self._category_worker is not None:
+            self._category_worker.deleteLater()
+            self._category_worker = None
 
     def _on_categories_loaded(self, categories: list[dict]):
         self._clear_category_buttons()
@@ -734,7 +756,13 @@ class OnlineModsPage(QWidget):
         self._worker.finished_data.connect(self._on_data_loaded)
         self._worker.error_occurred.connect(self._on_error)
         self._worker.finished.connect(self._on_worker_finished)
+        self._worker.finished.connect(self._on_scraper_worker_finished)
         self._worker.start()
+
+    def _on_scraper_worker_finished(self):
+        if self._worker is not None:
+            self._worker.deleteLater()
+            self._worker = None
 
     def _on_data_loaded(self, mods: list[dict[str, object]]):
         if not self._append_mode:
@@ -847,7 +875,13 @@ class OnlineModsPage(QWidget):
         self._detail_worker = ModDetailWorker(mod_id, details_url, self._scraper_factory)
         self._detail_worker.finished_details.connect(self._on_detail_loaded)
         self._detail_worker.error_occurred.connect(self._on_error)
+        self._detail_worker.finished.connect(self._on_detail_worker_finished)
         self._detail_worker.start()
+
+    def _on_detail_worker_finished(self):
+        if self._detail_worker is not None:
+            self._detail_worker.deleteLater()
+            self._detail_worker = None
 
     def _on_detail_loaded(self, details: dict):
         mod_id = str(details.get("id", "")).strip()
@@ -905,7 +939,13 @@ class OnlineModsPage(QWidget):
         )
         self._download_worker.finished_download.connect(self._on_download_finished)
         self._download_worker.error_occurred.connect(self._on_download_error)
+        self._download_worker.finished.connect(self._on_download_worker_finished)
         self._download_worker.start()
+
+    def _on_download_worker_finished(self):
+        if self._download_worker is not None:
+            self._download_worker.deleteLater()
+            self._download_worker = None
 
     def _on_download_finished(self, saved_path: str):
         self.status_label.setText(f"Downloaded mod to {saved_path}")
@@ -929,6 +969,31 @@ class OnlineModsPage(QWidget):
                 thumbnail.loadFromData(thumb_data)
             self.detail_panel.show_details(mod, thumbnail)
 
+    @staticmethod
+    def _stop_thread(thread: QThread | None) -> None:
+        if thread is None:
+            return
+
+        if thread.isRunning():
+            with suppress(Exception):
+                thread.requestInterruption()
+            with suppress(Exception):
+                thread.quit()
+            with suppress(Exception):
+                thread.wait(1000)
+        thread.deleteLater()
+
+    def closeEvent(self, event):  # type: ignore[override]
+        self._stop_thread(self._worker)
+        self._worker = None
+        self._stop_thread(self._detail_worker)
+        self._detail_worker = None
+        self._stop_thread(self._download_worker)
+        self._download_worker = None
+        self._stop_thread(self._category_worker)
+        self._category_worker = None
+        super().closeEvent(event)
+
 
 class CategoryWorker(QThread):
     finished_categories = pyqtSignal(list)
@@ -940,10 +1005,16 @@ class CategoryWorker(QThread):
 
     def run(self):
         try:
+            if self.isInterruptionRequested():
+                return
             categories = self._scraper.fetch_category_tree()
+            if self.isInterruptionRequested():
+                return
             visible_categories: list[dict[str, object]] = []
 
             for category in categories:
+                if self.isInterruptionRequested():
+                    return
                 label = str(category.get("label", "")).strip()
                 filter_key = str(category.get("filter", "")).strip()
                 children = category.get("children", [])
@@ -981,6 +1052,9 @@ class CategoryWorker(QThread):
                         }
                     )
 
+            if self.isInterruptionRequested():
+                return
             self.finished_categories.emit(visible_categories)
         except Exception as exc:  # pragma: no cover - defensive UI path
+            logger.warning("CategoryWorker failed: %s", exc)
             self.error_occurred.emit(str(exc))

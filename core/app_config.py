@@ -2,6 +2,11 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from core.logging_utils import get_logger
+
+
+logger = get_logger("app_config")
+
 
 @dataclass
 class AppConfig:
@@ -39,9 +44,19 @@ class AppConfigManager:
             if path.exists():
                 with open(path, "r", encoding="utf-8") as f:
                     return json.load(f)
-        except Exception:
-            pass
+        except (json.JSONDecodeError, OSError, TypeError, ValueError) as exc:
+            logger.warning("Failed to read JSON from %s: %s", path, exc)
         return {}
+
+    def _write_json(self, path: Path, payload: dict) -> bool:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=4)
+            return True
+        except (OSError, TypeError, ValueError) as exc:
+            logger.warning("Failed to write JSON to %s: %s", path, exc)
+            return False
 
     def _resolve_cache_root_from_bootstrap(self) -> Path:
         data = self._read_json(self.bootstrap_config_path)
@@ -64,28 +79,19 @@ class AppConfigManager:
             self.save()  # create defaults
             return
 
-        try:
-            with open(self.config_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                self.config.update_from_dict(data)
-        except Exception:
-            pass
+        data = self._read_json(self.config_path)
+        if data:
+            self.config.update_from_dict(data)
 
     def save(self):
         """Save configuration to disk."""
-        try:
-            payload = asdict(self.config)
-            self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.config_path, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=4)
+        payload = asdict(self.config)
+        if not self._write_json(self.config_path, payload):
+            return
 
-            # Keep bootstrap settings in sync so startup can resolve the manager home path.
-            if self.bootstrap_config_path != self.config_path:
-                self.bootstrap_config_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(self.bootstrap_config_path, "w", encoding="utf-8") as f:
-                    json.dump(payload, f, indent=4)
-        except Exception:
-            pass
+        # Keep bootstrap settings in sync so startup can resolve the manager home path.
+        if self.bootstrap_config_path != self.config_path:
+            self._write_json(self.bootstrap_config_path, payload)
 
     @property
     def manager_home(self) -> str:

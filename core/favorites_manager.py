@@ -14,11 +14,26 @@ class FavoritesManager:
         self._load()
 
     # ── Persistence ───────────────────────────────────────────────────────────
+    @staticmethod
+    def _parse_favorites_payload(payload: object) -> set[str]:
+        """Parse favorites payload from supported JSON shapes."""
+        if isinstance(payload, dict):
+            raw = payload.get("favorites", [])
+        elif isinstance(payload, list):
+            raw = payload
+        else:
+            raw = []
+
+        if not isinstance(raw, list):
+            return set()
+
+        return {item for item in raw if isinstance(item, str) and item.strip()}
+
     def _load(self):
         try:
             if self._path.exists():
                 data = json.loads(self._path.read_text(encoding="utf-8"))
-                self._favorites = set(data.get("favorites", []))
+                self._favorites = self._parse_favorites_payload(data)
         except Exception as e:
             print(f"Favorites load error: {e}")
             self._favorites = set()

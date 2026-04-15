@@ -90,26 +90,35 @@ class SaveManager:
             info.save_date = gt("saveDateFormatted") or gt("creationDate") or ""
             info.game_version = gt("gameVersionNumber") or ""
 
-            try:
-                info.play_time = float(gt("playTime", "0"))
-            except Exception:
-                info.play_time = 0.0
+            info.play_time = self._safe_float(gt("playTime", "0"), default=0.0)
 
             # Money from playerFarm element
             pf = root.find(".//playerFarm")
             if pf is not None:
-                try:
-                    info.money = float(pf.get("money", "0"))
-                except Exception:
-                    pass
+                info.money = self._safe_float(pf.get("money", "0"), default=0.0)
             if info.money == 0:
-                try:
-                    info.money = float(gt("money", "0"))
-                except Exception:
-                    pass
+                info.money = self._safe_float(gt("money", "0"), default=0.0)
         except Exception as e:
             print(f"Save parse error slot {info.slot}: {e}")
             info.farm_name = f"Save {info.slot}"
+
+    @staticmethod
+    def _safe_float(value: object, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _cleanup_partial_save(self, slot: int | None) -> None:
+        if slot is None:
+            return
+        try:
+            save_path = os.path.join(self.base_path, f"savegame{slot}")
+            if os.path.isdir(save_path):
+                shutil.rmtree(save_path)
+        except Exception:
+            # Best-effort cleanup should never mask original error.
+            pass
 
     def backup_save(self, slot: int) -> tuple[bool, str]:
         save_path = os.path.join(self.base_path, f"savegame{slot}")
@@ -327,13 +336,7 @@ class SaveManager:
             return True, f"New game created in save slot {target_slot}"
         
         except Exception as e:
-            # Cleanup on failure
-            try:
-                save_path = os.path.join(self.base_path, f"savegame{target_slot}")
-                if os.path.isdir(save_path):
-                    shutil.rmtree(save_path)
-            except Exception:
-                pass
+            self._cleanup_partial_save(target_slot)
             return False, f"Failed to create game: {str(e)}"
 
     def _generate_career_savegame_xml(

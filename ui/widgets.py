@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import (
-    QEasingCurve, QPropertyAnimation, QRect, Qt, QSize, QTimer, pyqtProperty,
+    QEasingCurve, QVariantAnimation, QRect, Qt, QSize, QTimer,
     pyqtSignal,
 )
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPen, QPixmap, QTransform
@@ -34,8 +34,8 @@ class SidebarNavButton(QPushButton):
         self._badge_visible = show
         self.update()
 
-    def paintEvent(self, event):
-        super().paintEvent(event)
+    def paintEvent(self, a0):
+        super().paintEvent(a0)
         if not self._badge_visible:
             return
 
@@ -77,19 +77,14 @@ class ToggleSwitch(QWidget):
         self.setFixedSize(48, 26)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        self._anim = QPropertyAnimation(self, b"thumb_x", self)
+        self._anim = QVariantAnimation(self)
         self._anim.setDuration(180)
         self._anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        self._anim.valueChanged.connect(self._on_thumb_animation_value)
 
-    # ── property ──────────────────────────────────────────────────────────────
-    def get_thumb_x(self) -> float:
-        return self._thumb_x
-
-    def set_thumb_x(self, v: float):
-        self._thumb_x = v
+    def _on_thumb_animation_value(self, value):
+        self._thumb_x = float(value)
         self.update()
-
-    thumb_x = pyqtProperty(float, get_thumb_x, set_thumb_x)
 
     # ── state ─────────────────────────────────────────────────────────────────
     @property
@@ -101,17 +96,18 @@ class ToggleSwitch(QWidget):
             return
         self._checked = checked
         self._anim.stop()
-        self._anim.setStartValue(self._thumb_x)
+        self._anim.setStartValue(float(self._thumb_x))
         self._anim.setEndValue(22.0 if checked else 2.0)
         self._anim.start()
         if emit:
             self.toggled.emit(checked)
 
     # ── events ────────────────────────────────────────────────────────────────
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, a0):
         self.set_checked(not self._checked, emit=True)
+        super().mousePressEvent(a0)
 
-    def paintEvent(self, event):
+    def paintEvent(self, a0):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
@@ -206,9 +202,9 @@ class ClickableFrame(QFrame):
 
     clicked = pyqtSignal()
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, a0):
         self.clicked.emit()
-        super().mousePressEvent(event)
+        super().mousePressEvent(a0)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

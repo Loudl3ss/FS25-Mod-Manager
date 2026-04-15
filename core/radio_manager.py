@@ -14,6 +14,16 @@ class RadioManager:
     def __init__(self, xml_path: str):
         self.xml_path = Path(xml_path)
 
+    @staticmethod
+    def _normalize_url(url: str) -> str:
+        return (url or "").strip()
+
+    @staticmethod
+    def _iter_station_nodes(root: ET.Element):
+        for node in list(root):
+            if node.tag == "streamingInternetRadio":
+                yield node
+
     def _load_tree(self):
         if self.xml_path.exists():
             try:
@@ -53,16 +63,14 @@ class RadioManager:
         tree = self._load_tree()
         root = self._root(tree)
         stations: list[str] = []
-        for node in list(root):
-            if node.tag != "streamingInternetRadio":
-                continue
+        for node in self._iter_station_nodes(root):
             href = (node.get("href") or "").strip()
             if href:
                 stations.append(href)
         return stations
 
     def add_web_station(self, url: str) -> bool:
-        clean_url = (url or "").strip()
+        clean_url = self._normalize_url(url)
         if not clean_url:
             return False
 
@@ -70,8 +78,7 @@ class RadioManager:
         root = self._root(tree)
         existing = {
             (node.get("href") or "").strip()
-            for node in list(root)
-            if node.tag == "streamingInternetRadio"
+            for node in self._iter_station_nodes(root)
         }
         if clean_url in existing:
             return False
@@ -82,16 +89,14 @@ class RadioManager:
         return True
 
     def remove_web_station(self, url: str) -> bool:
-        clean_url = (url or "").strip()
+        clean_url = self._normalize_url(url)
         if not clean_url:
             return False
 
         tree = self._load_tree()
         root = self._root(tree)
         removed = False
-        for node in list(root):
-            if node.tag != "streamingInternetRadio":
-                continue
+        for node in self._iter_station_nodes(root):
             href = (node.get("href") or "").strip()
             if href == clean_url:
                 root.remove(node)
@@ -117,7 +122,7 @@ class RadioManager:
         if target.is_symlink():
             try:
                 return str(target.resolve())
-            except Exception:
+            except (OSError, RuntimeError):
                 return str(target)
         if target.exists() and target.is_dir():
             return str(target)

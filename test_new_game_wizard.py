@@ -7,7 +7,7 @@ import os
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-def test_imports():
+def verify_imports():
     """Test that all modules can be imported."""
     print("Testing imports...")
     try:
@@ -29,7 +29,7 @@ def test_imports():
         print(f"  ✗ Import failed: {e}")
         return False
 
-def test_new_game_session():
+def verify_new_game_session():
     """Test NewGameSession functionality."""
     print("\nTesting NewGameSession...")
     from core.new_game_session import NewGameSession
@@ -61,7 +61,7 @@ def test_new_game_session():
     
     return True
 
-def test_save_manager():
+def verify_save_manager():
     """Test SaveManager finalize_new_game method."""
     print("\nTesting SaveManager...")
     from core.save_manager import SaveManager
@@ -119,13 +119,13 @@ def main():
     
     all_passed = True
     
-    if not test_imports():
+    if not verify_imports():
         all_passed = False
     
-    if not test_new_game_session():
+    if not verify_new_game_session():
         all_passed = False
     
-    if not test_save_manager():
+    if not verify_save_manager():
         all_passed = False
     
     print("\n" + "=" * 60)

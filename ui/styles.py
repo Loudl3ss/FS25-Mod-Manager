@@ -28,8 +28,8 @@ QMainWindow {
 #Sidebar {
     background-color: #0f172a;
     border-right: 1px solid #1e293b;
-    min-width: 240px;
-    max-width: 240px;
+    min-width: 248px;
+    max-width: 248px;
 }
 
 #SidebarLogo {

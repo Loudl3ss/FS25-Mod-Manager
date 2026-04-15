@@ -176,6 +176,8 @@ class MainWindow(QMainWindow):
         sidebar_scroll.setWidgetResizable(True)
         sidebar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         sidebar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        # Reserve a slim lane so overlay scrollbars do not cover nav badges.
+        sidebar_scroll.setViewportMargins(0, 0, 2, 0)
         return sidebar_scroll
 
     def _build_workplace_section(self, sb_lay: QVBoxLayout, nav_icon_size: QSize) -> None:

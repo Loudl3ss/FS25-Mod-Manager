@@ -37,6 +37,7 @@ from ui.new_game_page import NewGameView
 from ui.online_mods_page import OnlineModsPage
 from ui.radio_settings_page import RadioSettingsPage
 from ui.saves_page import SavesPage
+from ui.style_helpers import refresh_widget_style, set_bool_property
 from ui.widgets import SidebarNavButton
 
 
@@ -93,7 +94,7 @@ class MainWindow(QMainWindow):
         icon_name: str,
         page_id: int,
         icon_size: QSize,
-    ) -> QPushButton:
+    ) -> SidebarNavButton:
         button = SidebarNavButton(text, shortcut)
         button.setIcon(Icons.get_qicon(icon_name))
         button.setIconSize(icon_size)
@@ -148,7 +149,7 @@ class MainWindow(QMainWindow):
         sub.setObjectName("SidebarSubtitle")
         sb_lay.addWidget(sub)
 
-        self._nav_buttons: list[QPushButton] = []
+        self._nav_buttons: list[SidebarNavButton] = []
 
         self._build_workplace_section(sb_lay, nav_icon_size)
         self._build_library_section(sb_lay, nav_icon_size)
@@ -444,12 +445,8 @@ class MainWindow(QMainWindow):
             
         for i, btn in enumerate(self._nav_buttons):
             active = i == index
-            btn.setProperty("active", "true" if active else "false")
+            set_bool_property(btn, "active", active)
             btn.setChecked(active)
-            style = btn.style()
-            if style is not None:
-                style.unpolish(btn)
-                style.polish(btn)
 
     def _open_folder(self):
         import subprocess

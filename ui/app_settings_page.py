@@ -1,14 +1,16 @@
 """Global app settings page."""
 from __future__ import annotations
 
+from typing import Any
+
 from PyQt6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget, QPushButton, QFileDialog
+    QHBoxLayout, QLabel, QVBoxLayout, QWidget, QPushButton, QFileDialog
 )
 from PyQt6.QtCore import pyqtSignal, QTimer, QSize, Qt
 from PyQt6.QtGui import QIcon
 
 from core.app_config import AppConfigManager
-from ui.widgets import HSeparator
+from ui.widgets import HSeparator, PathSettingRow
 from ui.assets import Icons
 
 
@@ -22,6 +24,7 @@ class AppSettingsPage(QWidget):
     def __init__(self, app_config_manager: AppConfigManager, parent=None):
         super().__init__(parent)
         self._manager = app_config_manager
+        self._path_rows: dict[str, PathSettingRow] = {}
         self._build_ui()
 
     def _build_ui(self):
@@ -39,50 +42,15 @@ class AppSettingsPage(QWidget):
         root.addWidget(subtitle)
         root.addWidget(HSeparator())
 
-        # Mods Folder
-        self._add_path_setting(
-            root, 
-            "MODS FOLDER", 
-            self._manager.config.mods_folder,
-            self._on_mods_folder_selected,
-            "select_mods_folder"
-        )
-
-        # Savedgames Folder
-        self._add_path_setting(
-            root,
-            "SAVEDGAMES FOLDER",
-            self._manager.config.savedgames_folder,
-            self._on_savedgames_folder_selected,
-            "select_savedgames_folder"
-        )
-
-        # Backup Folder
-        self._add_path_setting(
-            root,
-            "BACKUP FOLDER",
-            self._manager.config.backup_folder,
-            self._on_backup_folder_selected,
-            "select_backup_folder"
-        )
-
-        # FS25 Mod Manager cache root folder
-        self._add_path_setting(
-            root,
-            "FS25 MOD MANAGER CACHE ROOT",
-            self._manager.config.manager_cache_root,
-            self._on_manager_cache_root_selected,
-            "select_manager_cache_root"
-        )
-
-        # Game Install Path
-        self._add_path_setting(
-            root,
-            "GAME INSTALL PATH",
-            self._manager.config.game_install_path,
-            self._on_game_install_path_selected,
-            "select_game_path"
-        )
+        for spec in self._path_setting_specs():
+            self._add_path_setting(
+                parent_layout=root,
+                label_text=spec["label_text"],
+                config_key=spec["config_key"],
+                dialog_title=spec["dialog_title"],
+                fallback_keys=spec.get("fallback_keys", ()),
+                change_signal=spec.get("change_signal"),
+            )
 
         root.addStretch()
 
@@ -105,94 +73,95 @@ class AppSettingsPage(QWidget):
         self._reset_button_timer.setSingleShot(True)
         self._reset_button_timer.timeout.connect(self._reset_save_button)
 
-    def _add_path_setting(self, parent_layout, label_text: str, current_path: str, callback, setting_id: str):
-        """Add a path setting row with browse button."""
+    def _path_setting_specs(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "label_text": "MODS FOLDER",
+                "config_key": "mods_folder",
+                "dialog_title": "Select Mods Folder",
+            },
+            {
+                "label_text": "SAVEDGAMES FOLDER",
+                "config_key": "savedgames_folder",
+                "dialog_title": "Select Savedgames Folder",
+            },
+            {
+                "label_text": "BACKUP FOLDER",
+                "config_key": "backup_folder",
+                "dialog_title": "Select Backup Folder",
+                "fallback_keys": ("savedgames_folder",),
+                "change_signal": self.backup_folder_changed,
+            },
+            {
+                "label_text": "FS25 MOD MANAGER CACHE ROOT",
+                "config_key": "manager_cache_root",
+                "dialog_title": "Select FS25 Mod Manager Cache Root",
+                "fallback_keys": ("game_install_path",),
+                "change_signal": self.manager_cache_root_changed,
+            },
+            {
+                "label_text": "GAME INSTALL PATH",
+                "config_key": "game_install_path",
+                "dialog_title": "Select Game Install Path",
+            },
+        ]
+
+    def _add_path_setting(
+        self,
+        parent_layout: QVBoxLayout,
+        label_text: str,
+        config_key: str,
+        dialog_title: str,
+        fallback_keys: tuple[str, ...] = (),
+        change_signal=None,
+    ):
+        """Add a path setting row with a generic browse callback."""
         section_title = QLabel(label_text)
         section_title.setStyleSheet("color: #94a3b8; font-weight: bold; font-size: 12px;")
         parent_layout.addWidget(section_title)
 
-        row = QFrame()
-        row.setProperty("class", "PathSettingRow")
-        row.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        r_lay = QHBoxLayout(row)
-        r_lay.setContentsMargins(16, 12, 16, 12)
-        r_lay.setSpacing(12)
-
-        # Path label
-        path_lbl = QLabel(current_path if current_path else "No path selected")
-        path_lbl.setObjectName("PathLabel")
-        path_lbl.setStyleSheet("color: #cbd5e1; font-size: 12px;")
-        path_lbl.setWordWrap(True)
-        setattr(self, f"{setting_id}_label", path_lbl)
-        r_lay.addWidget(path_lbl, stretch=1)
-
-        # Browse button
-        browse_btn = QPushButton("Browse...")
-        browse_btn.setObjectName("ToolBtn")
-        browse_btn.setFixedSize(100, 36)
-        browse_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        browse_btn.clicked.connect(callback)
-        r_lay.addWidget(browse_btn)
+        current_path = getattr(self._manager.config, config_key, "") or ""
+        row = PathSettingRow(current_path=current_path)
+        self._path_rows[config_key] = row
+        row.browse_requested.connect(
+            lambda ck=config_key, dt=dialog_title, fk=fallback_keys, sig=change_signal: self._select_path(
+                ck,
+                dt,
+                fk,
+                sig,
+            )
+        )
 
         parent_layout.addWidget(row)
         parent_layout.addSpacing(12)
 
-    def _on_mods_folder_selected(self):
-        folder = QFileDialog.getExistingDirectory(
-            self,
-            "Select Mods Folder",
-            self._manager.config.mods_folder or ""
-        )
-        if folder:
-            self._manager.config.mods_folder = folder
-            self._manager.save()
-            self.select_mods_folder_label.setText(folder)
+    def _select_path(
+        self,
+        config_key: str,
+        dialog_title: str,
+        fallback_keys: tuple[str, ...] = (),
+        change_signal=None,
+    ) -> None:
+        start_dir = getattr(self._manager.config, config_key, "") or ""
+        if not start_dir:
+            for key in fallback_keys:
+                start_dir = getattr(self._manager.config, key, "") or ""
+                if start_dir:
+                    break
 
-    def _on_savedgames_folder_selected(self):
         folder = QFileDialog.getExistingDirectory(
             self,
-            "Select Savedgames Folder",
-            self._manager.config.savedgames_folder or ""
+            dialog_title,
+            start_dir,
         )
         if folder:
-            self._manager.config.savedgames_folder = folder
+            setattr(self._manager.config, config_key, folder)
             self._manager.save()
-            self.select_savedgames_folder_label.setText(folder)
-
-    def _on_game_install_path_selected(self):
-        folder = QFileDialog.getExistingDirectory(
-            self,
-            "Select Game Install Path",
-            self._manager.config.game_install_path or ""
-        )
-        if folder:
-            self._manager.config.game_install_path = folder
-            self._manager.save()
-            self.select_game_path_label.setText(folder)
-
-    def _on_backup_folder_selected(self):
-        folder = QFileDialog.getExistingDirectory(
-            self,
-            "Select Backup Folder",
-            self._manager.config.backup_folder or self._manager.config.savedgames_folder or ""
-        )
-        if folder:
-            self._manager.config.backup_folder = folder
-            self._manager.save()
-            self.select_backup_folder_label.setText(folder)
-            self.backup_folder_changed.emit(folder)
-
-    def _on_manager_cache_root_selected(self):
-        folder = QFileDialog.getExistingDirectory(
-            self,
-            "Select FS25 Mod Manager Cache Root",
-            self._manager.config.manager_cache_root or self._manager.config.game_install_path or ""
-        )
-        if folder:
-            self._manager.config.manager_cache_root = folder
-            self._manager.save()
-            self.select_manager_cache_root_label.setText(folder)
-            self.manager_cache_root_changed.emit(folder)
+            row = self._path_rows.get(config_key)
+            if row is not None:
+                row.set_path(folder)
+            if change_signal is not None:
+                change_signal.emit(folder)
 
     def _on_save_and_rescan(self):
         """Save configuration and request a rescan."""

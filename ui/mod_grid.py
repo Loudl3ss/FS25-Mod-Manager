@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 from core.thumbnail_loader import ThumbnailLoader
 from ui.flow_layout import FlowLayout
 from ui.assets import Icons
+from ui.style_helpers import refresh_widget_style, set_bool_property
 
 
 class ClippedThumbnail(QLabel):
@@ -192,11 +193,8 @@ class ModCard(QFrame):
                 self.fav_btn.setIcon(Icons.get_qicon(Icons.STAR_OUTLINE))
             self.fav_btn.setIconSize(QSize(20, 20))
 
-            self.fav_btn.setProperty("active", self._is_favorite)
-            self.fav_btn.style().unpolish(self.fav_btn)
-            self.fav_btn.style().polish(self.fav_btn)
-            self.style().unpolish(self)
-            self.style().polish(self)
+            set_bool_property(self.fav_btn, "active", self._is_favorite)
+            refresh_widget_style(self)
 
             self.fav_effect = QGraphicsDropShadowEffect(self.fav_btn)
             self.fav_effect.setBlurRadius(10)
@@ -245,20 +243,14 @@ class ModCard(QFrame):
         self.modClicked.emit(self.mod_id)
 
     def set_selected(self, selected: bool):
-        self.setProperty("selectedForGame", "true" if selected else "false")
-        self.style().unpolish(self)
-        self.style().polish(self)
+        set_bool_property(self, "selectedForGame", selected)
 
     def _toggle_favorite(self):
         if not self._show_favorite or self.fav_btn is None:
             return
         self._is_favorite = not self._is_favorite
-        self.fav_btn.setProperty("active", "true" if self._is_favorite else "false")
-        self.setProperty("favorite", "true" if self._is_favorite else "false")
-        self.fav_btn.style().unpolish(self.fav_btn)
-        self.fav_btn.style().polish(self.fav_btn)
-        self.style().unpolish(self)
-        self.style().polish(self)
+        set_bool_property(self.fav_btn, "active", self._is_favorite)
+        set_bool_property(self, "favorite", self._is_favorite)
         
         # Update SVG icon based on favorite state
         if self._is_favorite:

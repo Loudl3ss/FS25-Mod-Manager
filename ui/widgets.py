@@ -7,11 +7,12 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPen, QPixmap, QTransform
 from PyQt6.QtWidgets import (
-    QFrame, QGraphicsDropShadowEffect, QGridLayout, QHBoxLayout, QLabel, QPushButton,
+    QApplication, QFrame, QGraphicsDropShadowEffect, QGridLayout, QHBoxLayout, QLabel, QPushButton,
     QStyle, QSizePolicy, QVBoxLayout, QWidget,
 )
 
 from core.thumbnail_loader import ThumbnailLoader
+from ui.style_helpers import refresh_widget_style, set_bool_property
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -194,9 +195,7 @@ class Badge(QLabel):
             self.setObjectName("BadgeDisabled")
         self.setFixedHeight(18)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        # force stylesheet refresh
-        self.style().unpolish(self)
-        self.style().polish(self)
+        refresh_widget_style(self)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -275,7 +274,7 @@ class ModCard(ClickableFrame):
         self._is_favorite = is_favorite
         self._star_btn = QPushButton("★" if is_favorite else "☆", self)
         self._star_btn.setObjectName("StarBtn")
-        self._star_btn.setProperty("active", "true" if is_favorite else "false")
+        set_bool_property(self._star_btn, "active", is_favorite)
         self._star_btn.setFixedSize(32, 32)
         font = self._star_btn.font()
         font.setPointSize(20)
@@ -325,25 +324,19 @@ class ModCard(ClickableFrame):
     def _on_star_clicked(self):
         self._is_favorite = not self._is_favorite
         self._star_btn.setText("★" if self._is_favorite else "☆")
-        self._star_btn.setProperty("active", "true" if self._is_favorite else "false")
+        set_bool_property(self._star_btn, "active", self._is_favorite)
         self._star_btn.setToolTip(
             "Remove from Favorites" if self._is_favorite else "Add to Favorites"
         )
-        self._star_btn.style().unpolish(self._star_btn)
-        self._star_btn.style().polish(self._star_btn)
         self.favorite_toggled.emit(self.mod_info, self._is_favorite)
 
     def set_favorite(self, is_fav: bool):
         self._is_favorite = is_fav
         self._star_btn.setText("★" if is_fav else "☆")
-        self._star_btn.setProperty("active", "true" if is_fav else "false")
-        self._star_btn.style().unpolish(self._star_btn)
-        self._star_btn.style().polish(self._star_btn)
+        set_bool_property(self._star_btn, "active", is_fav)
 
     def set_selected(self, selected: bool):
-        self.setProperty("selected", "true" if selected else "false")
-        self.style().unpolish(self)
-        self.style().polish(self)
+        set_bool_property(self, "selected", selected)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -463,7 +456,9 @@ class CollapsibleSection(QWidget):
         self._header.setObjectName("CollapsibleHeader")
         self._header.setCheckable(True)
         self._header.setChecked(self._expanded)
-        self._header.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowRight))
+        style = self._header.style() or QApplication.style()
+        if style is not None:
+            self._header.setIcon(style.standardIcon(QStyle.StandardPixmap.SP_ArrowRight))
         self._header.setIconSize(QSize(14, 14))
         self._header.clicked.connect(self._on_header_clicked)
 
@@ -488,14 +483,16 @@ class CollapsibleSection(QWidget):
         self._update_arrow()
 
     def _update_arrow(self):
-        base_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowRight)
+        style = self._header.style() or QApplication.style()
+        if style is None:
+            return
+        base_icon = style.standardIcon(QStyle.StandardPixmap.SP_ArrowRight)
         pixmap = base_icon.pixmap(self._header.iconSize())
         angle = 90 if self._expanded else 0
         rotated = pixmap.transformed(QTransform().rotate(angle), Qt.TransformationMode.SmoothTransformation)
         self._header.setIcon(QIcon(rotated))
         self._header.setProperty("expanded", self._expanded)
-        self._header.style().unpolish(self._header)
-        self._header.style().polish(self._header)
+        refresh_widget_style(self._header)
 
     def content_layout(self) -> QVBoxLayout:
         return self._content_layout
@@ -507,3 +504,33 @@ class HSeparator(QFrame):
         self.setObjectName("HSep")
         self.setFrameShape(QFrame.Shape.HLine)
         self.setFixedHeight(1)
+
+class PathSettingRow(QFrame):
+    """Reusable row for folder/path settings with browse action."""
+
+    browse_requested = pyqtSignal()
+
+    def __init__(self, current_path: str = "", parent=None):
+        super().__init__(parent)
+        self.setProperty("class", "PathSettingRow")
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(12)
+
+        self.path_label = QLabel(current_path if current_path else "No path selected")
+        self.path_label.setObjectName("PathLabel")
+        self.path_label.setStyleSheet("color: #cbd5e1; font-size: 12px;")
+        self.path_label.setWordWrap(True)
+        layout.addWidget(self.path_label, stretch=1)
+
+        browse_btn = QPushButton("Browse...")
+        browse_btn.setObjectName("ToolBtn")
+        browse_btn.setFixedSize(100, 36)
+        browse_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        browse_btn.clicked.connect(self.browse_requested.emit)
+        layout.addWidget(browse_btn)
+
+    def set_path(self, path: str) -> None:
+        self.path_label.setText(path if path else "No path selected")

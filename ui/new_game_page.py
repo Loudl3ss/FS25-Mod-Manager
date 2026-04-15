@@ -17,6 +17,7 @@ from ui.assets import Icons
 from ui.map_select_page import MapSelectionView
 from ui.settings_select_page import GameplaySettingsView
 from ui.mod_select_page import ModLoadoutView
+from ui.style_helpers import set_bool_property
 from core.new_game_session import NewGameSession
 
 
@@ -192,12 +193,8 @@ class NewGameView(QWidget):
         self.new_game_stack.setCurrentIndex(index)
         for i, btn in enumerate(self._sub_nav_buttons):
             active = (i == index)
-            btn.setProperty("active", "true" if active else "false")
+            set_bool_property(btn, "active", active)
             btn.setChecked(active)
-            style = btn.style()
-            if style is not None:
-                style.unpolish(btn)
-                style.polish(btn)
 
     def _set_step_completed(self, index: int, completed: bool):
         if 0 <= index < len(self._step_completed):

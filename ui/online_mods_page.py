@@ -24,10 +24,10 @@ from PyQt6.QtWidgets import (
 from core.online_scraper import FarmingSimulatorScraper
 from core.online_thumbnail_cache import OnlineThumbnailCache
 from ui.mod_grid import ModCard, ResponsiveModGrid
+from ui.network_helpers import build_retry_session
+from ui.style_helpers import refresh_widget_style, set_bool_property
 
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util import Retry
 
 
 class HoverCategoryButton(QPushButton):
@@ -56,23 +56,7 @@ class ScraperWorker(QThread):
         self._filter_key = filter_key
         self._scraper = scraper_factory()
         self._thumb_cache = OnlineThumbnailCache()
-        self._session = self._build_http_session()
-
-    def _build_http_session(self) -> requests.Session:
-        session = requests.Session()
-        retry = Retry(
-            total=3,
-            connect=3,
-            read=3,
-            backoff_factor=0.6,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=frozenset(["GET"]),
-        )
-        adapter = HTTPAdapter(max_retries=retry, pool_connections=10, pool_maxsize=10)
-        session.mount("http://", adapter)
-        session.mount("https://", adapter)
-        session.headers.update({"User-Agent": "FS25-Mod-Manager/OnlineScraper"})
-        return session
+        self._session = build_retry_session(user_agent="FS25-Mod-Manager/OnlineScraper")
 
     def _fetch_thumbnail_bytes(self, thumb_url: str, referer_url: str = "") -> bytes:
         cached = self._thumb_cache.get(thumb_url)
@@ -596,11 +580,7 @@ class OnlineModsPage(QWidget):
         menu.popup(global_pos)
 
     def _set_button_state(self, button: HoverCategoryButton, key: str, enabled: bool):
-        button.setProperty(key, "true" if enabled else "false")
-        style = button.style()
-        if style is not None:
-            style.unpolish(button)
-            style.polish(button)
+        set_bool_property(button, key, enabled)
 
     def _set_active_category(self, filter_key: str):
         for btn in self._category_buttons:
@@ -609,12 +589,8 @@ class OnlineModsPage(QWidget):
             raw_child_filters = meta.get("child_filters", [])
             child_filters = raw_child_filters if isinstance(raw_child_filters, list) else []
             active = direct_filter == filter_key or filter_key in child_filters
-            btn.setProperty("active", "true" if active else "false")
+            set_bool_property(btn, "active", active)
             btn.setChecked(active)
-            style = btn.style()
-            if style is not None:
-                style.unpolish(btn)
-                style.polish(btn)
 
         for child_filter, action in self._submenu_actions.items():
             action.setChecked(child_filter == filter_key)

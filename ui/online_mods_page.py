@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import suppress
 from typing import Any, Callable
 
 from PyQt6.QtCore import QPoint, Qt, QThread, pyqtSignal
@@ -21,6 +22,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from core.logging_utils import get_logger
 from core.online_scraper import FarmingSimulatorScraper
 from core.online_thumbnail_cache import OnlineThumbnailCache
 from ui.mod_grid import ModCard, ResponsiveModGrid
@@ -28,6 +30,9 @@ from ui.network_helpers import build_retry_session
 from ui.style_helpers import refresh_widget_style, set_bool_property
 
 import requests
+
+
+logger = get_logger("ui.online_mods")
 
 
 class HoverCategoryButton(QPushButton):
@@ -98,6 +103,7 @@ class ScraperWorker(QThread):
 
             self.finished_data.emit(data)
         except Exception as exc:  # pragma: no cover - defensive UI path
+            logger.warning("ScraperWorker failed page=%s filter=%s: %s", self._page, self._filter_key, exc)
             self.error_occurred.emit(str(exc))
         finally:
             self._session.close()
@@ -119,6 +125,7 @@ class ModDetailWorker(QThread):
             details["id"] = self._mod_id
             self.finished_details.emit(details)
         except Exception as exc:  # pragma: no cover - defensive UI path
+            logger.warning("ModDetailWorker failed mod_id=%s url=%s: %s", self._mod_id, self._details_url, exc)
             self.error_occurred.emit(str(exc))
 
 
@@ -151,6 +158,13 @@ class ModDownloadWorker(QThread):
             )
             self.finished_download.emit(saved_path)
         except Exception as exc:  # pragma: no cover - defensive UI path
+            logger.warning(
+                "ModDownloadWorker failed url=%s target_dir=%s filename=%s: %s",
+                self._download_url,
+                self._target_dir,
+                self._filename,
+                exc,
+            )
             self.error_occurred.emit(str(exc))
 
 
@@ -608,12 +622,21 @@ class OnlineModsPage(QWidget):
         self._submenu_actions.clear()
 
     def _load_categories(self):
+        if self._category_worker is not None and self._category_worker.isRunning():
+            return
+
         self.category_status_label.setText("Wait ... Loading mods")
         self.category_status_label.show()
         self._category_worker = CategoryWorker(self._scraper_factory)
         self._category_worker.finished_categories.connect(self._on_categories_loaded)
         self._category_worker.error_occurred.connect(self._on_categories_error)
+        self._category_worker.finished.connect(self._on_category_worker_finished)
         self._category_worker.start()
+
+    def _on_category_worker_finished(self):
+        if self._category_worker is not None:
+            self._category_worker.deleteLater()
+            self._category_worker = None
 
     def _on_categories_loaded(self, categories: list[dict]):
         self._clear_category_buttons()
@@ -710,7 +733,13 @@ class OnlineModsPage(QWidget):
         self._worker.finished_data.connect(self._on_data_loaded)
         self._worker.error_occurred.connect(self._on_error)
         self._worker.finished.connect(self._on_worker_finished)
+        self._worker.finished.connect(self._on_scraper_worker_finished)
         self._worker.start()
+
+    def _on_scraper_worker_finished(self):
+        if self._worker is not None:
+            self._worker.deleteLater()
+            self._worker = None
 
     def _on_data_loaded(self, mods: list[dict[str, object]]):
         if not self._append_mode:
@@ -823,7 +852,13 @@ class OnlineModsPage(QWidget):
         self._detail_worker = ModDetailWorker(mod_id, details_url, self._scraper_factory)
         self._detail_worker.finished_details.connect(self._on_detail_loaded)
         self._detail_worker.error_occurred.connect(self._on_error)
+        self._detail_worker.finished.connect(self._on_detail_worker_finished)
         self._detail_worker.start()
+
+    def _on_detail_worker_finished(self):
+        if self._detail_worker is not None:
+            self._detail_worker.deleteLater()
+            self._detail_worker = None
 
     def _on_detail_loaded(self, details: dict):
         mod_id = str(details.get("id", "")).strip()
@@ -881,7 +916,13 @@ class OnlineModsPage(QWidget):
         )
         self._download_worker.finished_download.connect(self._on_download_finished)
         self._download_worker.error_occurred.connect(self._on_download_error)
+        self._download_worker.finished.connect(self._on_download_worker_finished)
         self._download_worker.start()
+
+    def _on_download_worker_finished(self):
+        if self._download_worker is not None:
+            self._download_worker.deleteLater()
+            self._download_worker = None
 
     def _on_download_finished(self, saved_path: str):
         self.status_label.setText(f"Downloaded mod to {saved_path}")
@@ -904,6 +945,31 @@ class OnlineModsPage(QWidget):
             if isinstance(thumb_data, (bytes, bytearray)) and thumb_data:
                 thumbnail.loadFromData(thumb_data)
             self.detail_panel.show_details(mod, thumbnail)
+
+    @staticmethod
+    def _stop_thread(thread: QThread | None) -> None:
+        if thread is None:
+            return
+
+        if thread.isRunning():
+            with suppress(Exception):
+                thread.requestInterruption()
+            with suppress(Exception):
+                thread.quit()
+            with suppress(Exception):
+                thread.wait(1000)
+        thread.deleteLater()
+
+    def closeEvent(self, event):  # type: ignore[override]
+        self._stop_thread(self._worker)
+        self._worker = None
+        self._stop_thread(self._detail_worker)
+        self._detail_worker = None
+        self._stop_thread(self._download_worker)
+        self._download_worker = None
+        self._stop_thread(self._category_worker)
+        self._category_worker = None
+        super().closeEvent(event)
 
 
 class CategoryWorker(QThread):
@@ -959,4 +1025,5 @@ class CategoryWorker(QThread):
 
             self.finished_categories.emit(visible_categories)
         except Exception as exc:  # pragma: no cover - defensive UI path
+            logger.warning("CategoryWorker failed: %s", exc)
             self.error_occurred.emit(str(exc))

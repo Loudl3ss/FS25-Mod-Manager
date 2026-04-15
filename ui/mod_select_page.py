@@ -9,12 +9,16 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 
+from core.logging_utils import get_logger
 from core.mod_manager import ModInfo
 from core.new_game_session import NewGameSession
 from core.thumbnail_loader import ThumbnailLoader
 from ui.mod_grid import ModCard, ResponsiveModGrid
 from ui.assets import Icons
 from ui.style_helpers import set_bool_property
+
+
+logger = get_logger("ui.mod_select")
 
 
 class ModLoadoutView(QWidget):
@@ -235,4 +239,5 @@ class ModLoadoutView(QWidget):
             else:
                 QMessageBox.critical(self, "Error", message)
         except Exception as e:
+            logger.warning("Failed to create game in mod selection step: %s", e)
             QMessageBox.critical(self, "Error", f"Failed to create game: {str(e)}")

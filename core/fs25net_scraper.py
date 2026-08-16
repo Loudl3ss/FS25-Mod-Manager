@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
-from urllib.parse import parse_qs, urljoin, urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
 
 from core.logging_utils import get_logger
+from core.scraper_common import build_session, download_mod, flatten_category_tree
 
 logger = get_logger("core.fs25net_scraper")
 
@@ -83,14 +83,7 @@ class FS25NetScraper:
     ]
 
     def _build_session(self) -> requests.Session:
-        """Build an HTTP session with retries."""
-        session = requests.Session()
-        session.headers.update(
-            {
-                "User-Agent": "FS25-Mod-Manager/FS25NetScraper",
-            }
-        )
-        return session
+        return build_session("FS25-Mod-Manager/FS25NetScraper")
 
     def _slug_to_label(self, slug: str) -> str:
         return slug.replace("-", " ").title()
@@ -401,49 +394,11 @@ class FS25NetScraper:
             "download_url": download_url,
         }
 
-    def download_mod(
-        self,
-        download_url: str,
-        target_dir: str,
-        referer_url: str = "",
-        filename: str = "",
-    ) -> str:
+    def download_mod(self, download_url: str, target_dir: str, referer_url: str = "", filename: str = "") -> str:
         """Download a mod file to target_dir."""
-        if not download_url:
-            raise ValueError("Download URL is empty")
-
-        target_path = Path(target_dir)
-        target_path.mkdir(parents=True, exist_ok=True)
-
-        # If no filename, try to extract from URL or generate one
-        if not filename:
-            parsed = urlparse(download_url)
-            filename = Path(parsed.path).name or "mod.zip"
-
-        file_path = target_path / filename
-        part_path = target_path / f"{filename}.part"
-
-        try:
-            with self._build_session() as session:
-                headers = {}
-                if referer_url:
-                    headers["Referer"] = referer_url
-
-                response = session.get(download_url, headers=headers or None, timeout=30, stream=True)
-                response.raise_for_status()
-
-                with open(part_path, "wb") as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-
-                part_path.rename(file_path)
-                return str(file_path)
-        except (requests.RequestException, OSError) as exc:
-            logger.warning("download_mod failed for %s: %s", download_url, exc)
-            if part_path.exists():
-                part_path.unlink()
-            raise
+        with self._build_session() as session:
+            return download_mod(session, download_url, target_dir,
+                                referer_url=referer_url, filename=filename, timeout=30)
 
     def fetch_category_tree(self) -> list[dict[str, object]]:
         """Return requested category tree plus extra categories discovered on FS25.NET."""
@@ -465,23 +420,4 @@ class FS25NetScraper:
 
     def fetch_category_filters(self) -> list[dict[str, str]]:
         """Flatten category tree into a flat list of filters."""
-        flat: list[dict[str, str]] = []
-
-        for node in self.fetch_category_tree():
-            label = str(node.get("label", "")).strip()
-            filter_key = str(node.get("filter", "")).strip()
-            children = node.get("children", [])
-
-            # Add parent if it has a filter
-            if filter_key:
-                flat.append({"label": label, "filter": filter_key})
-
-            # Add children
-            if isinstance(children, list):
-                for child in children:
-                    child_label = str(child.get("label", "")).strip()
-                    child_filter = str(child.get("filter", "")).strip()
-                    if child_label and child_filter:
-                        flat.append({"label": child_label, "filter": child_filter})
-
-        return flat
+        return flatten_category_tree(self.fetch_category_tree())

@@ -1,15 +1,17 @@
 """Global app settings page."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from PyQt6.QtWidgets import (
-    QHBoxLayout, QLabel, QVBoxLayout, QWidget, QPushButton, QFileDialog
+    QHBoxLayout, QLabel, QVBoxLayout, QWidget, QPushButton, QFileDialog, QMessageBox
 )
 from PyQt6.QtCore import pyqtSignal, QTimer, QSize, Qt
 from PyQt6.QtGui import QIcon
 
 from core.app_config import AppConfigManager
+from core.fs25_detector import FS25Detector
 from ui.widgets import HSeparator, PathSettingRow
 from ui.assets import Icons
 
@@ -61,7 +63,7 @@ class AppSettingsPage(QWidget):
 
         self._save_rescan_btn = QPushButton("Save & Rescan")
         self._save_rescan_btn.setObjectName("PrimaryBtn")
-        self._save_rescan_btn.setFixedSize(140, 36)
+        self._save_rescan_btn.setFixedHeight(30)
         self._save_rescan_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._save_rescan_btn.clicked.connect(self._on_save_and_rescan)
         btn_layout.addWidget(self._save_rescan_btn)
@@ -76,31 +78,31 @@ class AppSettingsPage(QWidget):
     def _path_setting_specs(self) -> list[dict[str, Any]]:
         return [
             {
-                "label_text": "MODS FOLDER",
+                "label_text": "Mods Folder",
                 "config_key": "mods_folder",
                 "dialog_title": "Select Mods Folder",
             },
             {
-                "label_text": "SAVEDGAMES FOLDER",
+                "label_text": "Savedgames Folder",
                 "config_key": "savedgames_folder",
                 "dialog_title": "Select Savedgames Folder",
             },
             {
-                "label_text": "BACKUP FOLDER",
+                "label_text": "Backup Folder",
                 "config_key": "backup_folder",
                 "dialog_title": "Select Backup Folder",
                 "fallback_keys": ("savedgames_folder",),
                 "change_signal": self.backup_folder_changed,
             },
             {
-                "label_text": "FS25 MOD MANAGER CACHE ROOT",
+                "label_text": "Manager Cache Root",
                 "config_key": "manager_cache_root",
                 "dialog_title": "Select FS25 Mod Manager Cache Root",
                 "fallback_keys": ("game_install_path",),
                 "change_signal": self.manager_cache_root_changed,
             },
             {
-                "label_text": "GAME INSTALL PATH",
+                "label_text": "Game Install Path",
                 "config_key": "game_install_path",
                 "dialog_title": "Select Game Install Path",
             },
@@ -117,7 +119,7 @@ class AppSettingsPage(QWidget):
     ):
         """Add a path setting row with a generic browse callback."""
         section_title = QLabel(label_text)
-        section_title.setStyleSheet("color: #94a3b8; font-weight: bold; font-size: 12px;")
+        section_title.setStyleSheet("color: #8b94a1; font-weight: bold; font-size: 12px;")
         parent_layout.addWidget(section_title)
 
         current_path = getattr(self._manager.config, config_key, "") or ""
@@ -132,8 +134,51 @@ class AppSettingsPage(QWidget):
             )
         )
 
+        row.scan_requested.connect(
+            lambda ck=config_key, sig=change_signal: self._scan_path(ck, sig)
+        )
+
         parent_layout.addWidget(row)
         parent_layout.addSpacing(12)
+
+    def _detect_path(self, config_key: str) -> str:
+        """Work out what this setting should be, from the detected install."""
+        data_paths = FS25Detector.search()
+        data_path = Path(data_paths[0]) if data_paths else None
+
+        if config_key == "game_install_path":
+            return FS25Detector.find_game_install() or ""
+        if data_path is None:
+            return ""
+        if config_key == "mods_folder":
+            return FS25Detector.get_mods_path(str(data_path))
+        if config_key in ("savedgames_folder", "manager_cache_root"):
+            return str(data_path)
+        if config_key == "backup_folder":
+            return str(Path(self._manager.manager_home) / "backups")
+        return ""
+
+    def _scan_path(self, config_key: str, change_signal=None) -> None:
+        detected = self._detect_path(config_key)
+        if not detected:
+            QMessageBox.information(
+                self,
+                "Scan",
+                "Could not detect this folder automatically.\n\n"
+                "Use Browse… to select it yourself.",
+            )
+            return
+
+        self._apply_path(config_key, detected, change_signal)
+
+    def _apply_path(self, config_key: str, folder: str, change_signal=None) -> None:
+        setattr(self._manager.config, config_key, folder)
+        self._manager.save()
+        row = self._path_rows.get(config_key)
+        if row is not None:
+            row.set_path(folder)
+        if change_signal is not None:
+            change_signal.emit(folder)
 
     def _select_path(
         self,
@@ -155,13 +200,7 @@ class AppSettingsPage(QWidget):
             start_dir,
         )
         if folder:
-            setattr(self._manager.config, config_key, folder)
-            self._manager.save()
-            row = self._path_rows.get(config_key)
-            if row is not None:
-                row.set_path(folder)
-            if change_signal is not None:
-                change_signal.emit(folder)
+            self._apply_path(config_key, folder, change_signal)
 
     def _on_save_and_rescan(self):
         """Save configuration and request a rescan."""

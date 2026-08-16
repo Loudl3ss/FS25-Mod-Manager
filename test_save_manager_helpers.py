@@ -36,3 +36,30 @@ class TestSaveManagerHelpers(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class TestDeleteSave(unittest.TestCase):
+    def _manager(self, tmp: str):
+        return SaveManager(tmp, backup_dir=os.path.join(tmp, "bk"),
+                           default_backup_base=os.path.join(tmp, "bk"))
+
+    def test_delete_save_removes_the_slot_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            slot_dir = os.path.join(tmp, "savegame1")
+            os.makedirs(os.path.join(slot_dir, "nested"))
+            with open(os.path.join(slot_dir, "careerSavegame.xml"), "w") as fh:
+                fh.write("<careerSavegame/>")
+
+            manager = self._manager(tmp)
+            self.assertTrue(manager.get_save(1).exists)
+
+            ok, _ = manager.delete_save(1)
+            self.assertTrue(ok)
+            self.assertFalse(os.path.exists(slot_dir))
+            # A deleted slot must not report itself as still present.
+            self.assertFalse(manager.get_save(1).exists)
+
+    def test_delete_save_reports_missing_slot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ok, message = self._manager(tmp).delete_save(4)
+            self.assertFalse(ok)
+            self.assertIn("does not exist", message)

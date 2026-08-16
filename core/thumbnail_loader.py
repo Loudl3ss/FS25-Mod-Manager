@@ -95,7 +95,12 @@ class ThumbnailLoader:
                 cls._log_failure(mod_id, thumbnail_id, icon_data, exc)
                 return cls._placeholder_pixmap()
 
-            result = QPixmap.fromImage(QImage(ImageQt(image)))
+            # ImageQt wraps the PIL buffer without owning it, so the QImage
+            # dies with the temporary and Qt reads freed memory. Keep it alive
+            # and deep-copy before handing the data to QPixmap.
+            qt_image = ImageQt(image)
+            result = QPixmap.fromImage(QImage(qt_image).copy())
+            del qt_image
             if not result.isNull():
                 return result
         except Exception as exc:

@@ -30,15 +30,6 @@ class GameSettings:
 
     _path: str = field(default="", repr=False)
 
-    def copy(self) -> "GameSettings":
-        import copy
-        return copy.copy(self)
-
-
-DIFF_MAP = {1: "Easy", 2: "Normal", 3: "Hard"}
-REALISM_MAP = {1: "Off / Low", 2: "Normal", 3: "Realistic"}
-FUEL_MAP = {1: "Low", 2: "Normal", 3: "High"}
-
 
 class SettingsManager:
     def __init__(self, path: str):

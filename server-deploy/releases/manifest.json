@@ -1,16 +1,17 @@
 {
   "name": "FS25 Manager",
-  "version": "1.1.0",
+  "version": "1.3.0",
   "platform": "linux-bazzite-appimage",
   "arch": "x86_64",
-  "build_date": "2026-04-15",
-  "executable": "FS25-Manager-1.1.0-bazzite-x86_64.AppImage",
-  "archive": "FS25-Manager-1.1.0-bazzite-x86_64.AppImage",
-  "description": "FS25 Mod Manager – desktop utility for managing Farming Simulator 25 mods on Bazzite Linux",
+  "build_date": "2026-08-16",
+  "executable": "FS25-Manager-1.3.0-x86_64.AppImage",
+  "archive": "FS25-Manager-1.3.0-x86_64.AppImage",
+  "description": "FS25 Mod Manager \u2013 desktop utility for managing Farming Simulator 25 mods on Bazzite Linux",
   "requires": [
     "libGL",
     "libglib-2.0",
     "libdbus-1"
   ],
-  "changelog": "v1.1.0 Bazzite AppImage release with UI/sidebar improvements and lazy online category loading"
+  "changelog": "v1.1.0 Bazzite AppImage release with UI/sidebar improvements and lazy online category loading",
+  "download_url": "https://github.com/Loudl3ss/FS25-Mod-Manager/releases/download/v1.3.0/FS25-Manager-1.3.0-x86_64.AppImage"
 }

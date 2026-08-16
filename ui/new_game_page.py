@@ -57,8 +57,8 @@ class NewGameView(QWidget):
         self.sub_sidebar.setFixedWidth(200)
         self.sub_sidebar.setStyleSheet("""
             QFrame#SubSidebar {
-                background-color: #0f172a;
-                border-right: 1px solid #1e293b;
+                background-color: #0b0e12;
+                border-right: 1px solid #161a21;
             }
             QPushButton#SubNavBtn {
                 background-color: transparent;
@@ -66,21 +66,21 @@ class NewGameView(QWidget):
                 text-align: left;
                 padding: 10px 14px;
                 padding-left: 12px;
-                color: #94a3b8;
+                color: #8b94a1;
                 font-size: 13px;
                 font-weight: 400;
                 margin: 2px 8px;
                 border-radius: 8px;
             }
             QPushButton#SubNavBtn:hover {
-                background-color: #1e293b;
-                color: #e2e8f0;
+                background-color: #161a21;
+                color: #d5dbe3;
             }
             QPushButton#SubNavBtn[active="true"] {
                 font-weight: 600;
-                color: #4ade80;
+                color: #5a9e6b;
                 background-color: rgba(74, 222, 128, 0.1);
-                border-right: 3px solid #4ade80;
+                border-right: 3px solid #5a9e6b;
             }
         """)
         

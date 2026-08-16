@@ -93,6 +93,33 @@ class AppConfigManager:
         if self.bootstrap_config_path != self.config_path:
             self._write_json(self.bootstrap_config_path, payload)
 
+    def autofill_defaults(self, data_path: str, game_install_path: str = "") -> list[str]:
+        """Fill in any path the user has not set, from the detected install.
+
+        Only empty fields are touched, so a path the user chose by hand always
+        wins. Returns the names of the fields that were filled.
+        """
+        base = Path(data_path).expanduser()
+        defaults = {
+            "mods_folder": str(base / "mods"),
+            "savedgames_folder": str(base),
+            "manager_cache_root": str(base),
+            "backup_folder": str(self.data_dir / "backups"),
+        }
+        if game_install_path:
+            defaults["game_install_path"] = game_install_path
+
+        filled = [
+            key for key, value in defaults.items()
+            if not str(getattr(self.config, key, "")).strip() and value
+        ]
+        for key in filled:
+            setattr(self.config, key, defaults[key])
+
+        if filled:
+            self.save()
+        return filled
+
     @property
     def manager_home(self) -> str:
         return str(self.data_dir)

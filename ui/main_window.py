@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -70,6 +71,13 @@ class MainWindow(QMainWindow):
         self._mods_path = mods_path
 
         self._app_config_manager = AppConfigManager(data_path)
+        # A fresh install has no paths configured; derive them from the folder
+        # detection already done at startup instead of making the user type
+        # them in. Anything the user set by hand is left alone.
+        self._app_config_manager.autofill_defaults(
+            data_path,
+            game_install_path=FS25Detector.find_game_install() or "",
+        )
         self._manager_home = self._app_config_manager.manager_home
         self._mod_manager = ModManager(mods_path, app_cache_root=self._manager_home)
         self._radio_manager = RadioManager(
@@ -118,7 +126,7 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        nav_icon_size = QSize(24, 24)
+        nav_icon_size = QSize(18, 18)
         root.addWidget(self._build_sidebar(nav_icon_size))
         self._build_pages()
         root.addWidget(self._stack, stretch=1)
@@ -132,22 +140,22 @@ class MainWindow(QMainWindow):
         sidebar = QWidget()
         sidebar.setObjectName("Sidebar")
         sb_lay = QVBoxLayout(sidebar)
-        sb_lay.setContentsMargins(16, 0, 8, 0)
+        sb_lay.setContentsMargins(8, 0, 4, 0)
         sb_lay.setSpacing(0)
 
         # Logo block
         logo = QLabel(
             '<span style="font-family: Impact, \'Arial Black\', \'Segoe UI\', sans-serif; '
-            'font-size: 36px; font-weight: 900; color: #e5e7eb; letter-spacing: 0.5px;">FS</span>'
+            'font-size: 24px; font-weight: 900; color: #d5dbe3; letter-spacing: 0.5px;">FS</span>'
             '<span style="font-family: Impact, \'Arial Black\', \'Segoe UI\', sans-serif; '
-            'font-size: 28px; font-weight: 900; color: #ffffff; background: #84cc16; '
-            'border: 1px solid #65a30d; border-radius: 8px; padding: 0 8px; margin-left: 6px;">25</span>'
+            'font-size: 19px; font-weight: 900; color: #ffffff; background: #5a9e6b; '
+            'border: 1px solid #3f7d51; border-radius: 6px; padding: 0 6px; margin-left: 5px;">25</span>'
         )
         logo.setTextFormat(Qt.TextFormat.RichText)
         logo.setObjectName("SidebarLogo")
         sb_lay.addWidget(logo)
 
-        sub = QLabel("MANAGER")
+        sub = QLabel("Manager")
         sub.setObjectName("SidebarSubtitle")
         sb_lay.addWidget(sub)
 
@@ -162,8 +170,11 @@ class MainWindow(QMainWindow):
 
         sb_lay.addStretch(1)
 
-        self.btn_launch_game = QPushButton("LAUNCH GAME")
+        self.btn_launch_game = QPushButton("Launch Game")
         self.btn_launch_game.setObjectName("LaunchBtn")
+        self.btn_launch_game.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed
+        )
         self.btn_launch_game.clicked.connect(GameLauncher.launch_steam_game)
         sb_lay.addWidget(self.btn_launch_game)
 
@@ -171,6 +182,9 @@ class MainWindow(QMainWindow):
 
         sidebar_scroll = QScrollArea()
         sidebar_scroll.setObjectName("SidebarScroll")
+        # Width is fixed here rather than inferred from the widest button, so
+        # nav labels can never push the sidebar into sideways scrolling.
+        sidebar_scroll.setFixedWidth(224)
         sidebar_scroll.setFrameShape(QFrame.Shape.NoFrame)
         sidebar_scroll.setWidget(sidebar)
         sidebar_scroll.setWidgetResizable(True)
@@ -181,12 +195,12 @@ class MainWindow(QMainWindow):
         return sidebar_scroll
 
     def _build_workplace_section(self, sb_lay: QVBoxLayout, nav_icon_size: QSize) -> None:
-        workplace_label = QLabel("WORKPLACE")
+        workplace_label = QLabel("Workplace")
         workplace_label.setObjectName("SidebarSection")
         sb_lay.addWidget(workplace_label)
         workplace_widget = QWidget()
         workplace_layout = QVBoxLayout(workplace_widget)
-        workplace_layout.setContentsMargins(12, 0, 8, 0)
+        workplace_layout.setContentsMargins(4, 0, 2, 0)
         workplace_layout.setSpacing(0)
         self.btn_mod_manager = self._add_sidebar_nav_button(
             workplace_layout,
@@ -223,12 +237,12 @@ class MainWindow(QMainWindow):
         sb_lay.addWidget(workplace_widget)
 
     def _build_library_section(self, sb_lay: QVBoxLayout, nav_icon_size: QSize) -> None:
-        library_label = QLabel("LIBRARY")
+        library_label = QLabel("Library")
         library_label.setObjectName("SidebarSection")
         sb_lay.addWidget(library_label)
         library_widget = QWidget()
         library_layout = QVBoxLayout(library_widget)
-        library_layout.setContentsMargins(12, 0, 8, 0)
+        library_layout.setContentsMargins(4, 0, 2, 0)
         library_layout.setSpacing(0)
         self.btn_favorites = self._add_sidebar_nav_button(
             library_layout,
@@ -262,7 +276,7 @@ class MainWindow(QMainWindow):
         sb_lay.addWidget(online_label)
         online_widget = QWidget()
         online_layout = QVBoxLayout(online_widget)
-        online_layout.setContentsMargins(12, 0, 8, 0)
+        online_layout.setContentsMargins(4, 0, 2, 0)
         online_layout.setSpacing(0)
         self.btn_online = self._add_sidebar_nav_button(
             online_layout,
@@ -291,12 +305,12 @@ class MainWindow(QMainWindow):
         sb_lay.addWidget(online_widget)
 
     def _build_tools_section(self, sb_lay: QVBoxLayout, nav_icon_size: QSize) -> None:
-        tools_label = QLabel("TOOLS")
+        tools_label = QLabel("Tools")
         tools_label.setObjectName("SidebarSection")
         sb_lay.addWidget(tools_label)
         tools_widget = QWidget()
         tools_layout = QVBoxLayout(tools_widget)
-        tools_layout.setContentsMargins(12, 0, 8, 0)
+        tools_layout.setContentsMargins(4, 0, 2, 0)
         tools_layout.setSpacing(0)
         self.btn_log = self._add_sidebar_nav_button(
             tools_layout,
@@ -329,10 +343,11 @@ class MainWindow(QMainWindow):
 
         divider = QWidget()
         divider.setFixedHeight(1)
-        divider.setStyleSheet("background: #1e293b;")
+        divider.setStyleSheet("background: #161a21;")
         sb_lay.addWidget(divider)
 
-        btn_folder = QPushButton("📂  Open Game Folder")
+        btn_folder = QPushButton("📂  Open Folder")
+        btn_folder.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         btn_folder.setObjectName("ToolBtn")
         btn_folder.setContentsMargins(8, 4, 8, 4)
         btn_folder.clicked.connect(self._open_folder)

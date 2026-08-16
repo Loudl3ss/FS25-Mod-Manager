@@ -19,6 +19,7 @@ dist/
 # Release binary artifacts (built locally, not committed)
 server-deploy/releases/linux/
 server-deploy/releases/windows/
+server-deploy/releases/*.AppImage
 server-deploy/releases/*.tar.gz
 server-deploy/releases/*.zip
 server-deploy/releases/appimage/
@@ -40,3 +41,6 @@ Thumbs.db
 
 # Stray pip version files
 =*
+
+# Working notes and agent docs stay out of the repo
+*.md

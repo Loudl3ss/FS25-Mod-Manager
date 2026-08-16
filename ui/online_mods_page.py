@@ -206,7 +206,7 @@ class OnlineModDetailPanel(QWidget):
         self._thumb_frame = QFrame()
         self._thumb_frame.setFixedSize(180, 180)
         self._thumb_frame.setStyleSheet(
-            "background: #1e293b; border-radius: 12px;"
+            "background: #161a21; border-radius: 12px;"
         )
         _thumb_inner = QVBoxLayout(self._thumb_frame)
         _thumb_inner.setContentsMargins(5, 5, 5, 5)
@@ -417,9 +417,9 @@ class OnlineModsPage(QWidget):
         self.search_bar.setFixedHeight(30)
         self.search_bar.setClearButtonEnabled(True)
         self.search_bar.setStyleSheet(
-            "QLineEdit { background: #1e293b; color: #e2e8f0; border: 1px solid #334155;"
+            "QLineEdit { background: #161a21; color: #d5dbe3; border: 1px solid #2b313b;"
             " border-radius: 6px; padding: 2px 8px; font-size: 13px; }"
-            "QLineEdit:focus { border: 1px solid #4ade80; }"
+            "QLineEdit:focus { border: 1px solid #5a9e6b; }"
         )
         self.search_bar.textChanged.connect(self._on_search_changed)
         actions.addWidget(self.search_bar, alignment=Qt.AlignmentFlag.AlignVCenter)
@@ -450,15 +450,15 @@ class OnlineModsPage(QWidget):
         self.sub_panel.setStyleSheet(
             """
             QFrame#SubSidebar {
-                background-color: #0f172a;
-                border-right: 1px solid #1e293b;
+                background-color: #0b0e12;
+                border-right: 1px solid #161a21;
             }
             QPushButton#SubNavBtn {
                 background-color: transparent;
                 border: none;
                 text-align: left;
                 padding: 4px 10px;
-                color: #94a3b8;
+                color: #8b94a1;
                 font-size: 13px;
                 font-weight: 400;
                 margin: 1px 8px;
@@ -466,19 +466,19 @@ class OnlineModsPage(QWidget):
             }
             QPushButton#SubNavBtn:hover {
                 background-color: rgba(30, 41, 59, 0.95);
-                color: #e2e8f0;
+                color: #d5dbe3;
             }
             QPushButton#SubNavBtn[hovered="true"],
             QPushButton#SubNavBtn[submenuOpen="true"] {
-                color: #86efac;
+                color: #9ccfa9;
                 background-color: rgba(34, 197, 94, 0.08);
-                border-left: 3px solid #4ade80;
+                border-left: 3px solid #5a9e6b;
             }
             QPushButton#SubNavBtn[active=\"true\"] {
                 font-weight: 600;
-                color: #4ade80;
+                color: #5a9e6b;
                 background-color: rgba(74, 222, 128, 0.1);
-                border-left: 3px solid #4ade80;
+                border-left: 3px solid #5a9e6b;
             }
             """
         )
@@ -487,7 +487,7 @@ class OnlineModsPage(QWidget):
         panel_layout.setContentsMargins(0, 14, 0, 0)
         panel_layout.setSpacing(2)
 
-        cat_header = QLabel("CATEGORIES")
+        cat_header = QLabel("Categories")
         cat_header.setObjectName("SidebarSection")
         cat_header.setContentsMargins(12, 0, 8, 0)
         panel_layout.addWidget(cat_header)
@@ -516,7 +516,7 @@ class OnlineModsPage(QWidget):
         # Keep a visible separator so popup/hover states never visually hide the panel edge.
         divider = QFrame()
         divider.setFixedWidth(1)
-        divider.setStyleSheet("background-color: #1e293b;")
+        divider.setStyleSheet("background-color: #161a21;")
         root.addWidget(divider)
 
         root.addWidget(content, stretch=1)
@@ -547,24 +547,24 @@ class OnlineModsPage(QWidget):
             menu.setStyleSheet(
                 """
                 QMenu#OnlineCategoryPopup {
-                    background: #0f172a;
-                    border: 1px solid #334155;
+                    background: #0b0e12;
+                    border: 1px solid #2b313b;
                     border-radius: 8px;
                     padding: 6px;
                 }
                 QMenu#OnlineCategoryPopup::item {
-                    color: #cbd5e1;
+                    color: #c2c9d3;
                     border-radius: 6px;
                     padding: 7px 12px;
                     min-width: 180px;
                 }
                 QMenu#OnlineCategoryPopup::item:selected {
                     background: rgba(30, 41, 59, 0.98);
-                    color: #e2e8f0;
+                    color: #d5dbe3;
                 }
                 QMenu#OnlineCategoryPopup::item:checked {
                     background: rgba(74, 222, 128, 0.12);
-                    color: #4ade80;
+                    color: #5a9e6b;
                 }
                 """
             )

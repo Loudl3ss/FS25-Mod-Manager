@@ -114,6 +114,26 @@ class MapSelectionView(QWidget):
         maps = [m for m in mods if m.category == "Map"]
         favorite_map_ids = [m.id for m in maps if self._favorites and self._favorites.is_favorite(m.id)]
 
+        if not maps:
+            # Without this the grid is simply blank, which reads as "the app
+            # failed to find my game" rather than "you have no map mods".
+            empty = QLabel(
+                "No map mods installed.\n\n"
+                f"{len(mods)} mod(s) were found, but none of them is a map.\n"
+                "Install a map mod into your mods folder, or browse for one in "
+                "Online Mods, then press Refresh."
+            )
+            empty.setObjectName("EmptyState")
+            empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            empty.setWordWrap(True)
+            self.grid.addWidget(empty, 0, 0)
+            # Nothing selectable, so drop any stale selection from a previous
+            # scan instead of leaving Next enabled on a map that is now gone.
+            self.session.selected_map = None
+            self.btn_next.setEnabled(False)
+            self._last_multi_fav_signature = None
+            return
+
         columns = 4
         for idx, mod in enumerate(maps):
             row = idx // columns
@@ -191,13 +211,13 @@ class MapSelectionView(QWidget):
             card.setStyleSheet("""
                 ModCard {
                     background-color: transparent;
-                    border: 2px solid #2e7d32;
+                    border: 2px solid #3f7d51;
                     border-radius: 12px;
                     padding: 0px;
                 }
                 ModCard:hover {
                     background-color: rgba(15, 23, 42, 0.4);
-                    border: 2px solid #64dd17;
+                    border: 2px solid #6bb07d;
                 }
             """)
 

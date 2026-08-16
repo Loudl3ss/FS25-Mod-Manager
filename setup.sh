@@ -10,7 +10,7 @@ python3 -m venv "$VENV"
 
 echo "==> Installing dependencies..."
 "$VENV/bin/pip" install --upgrade pip --quiet
-"$VENV/bin/pip" install PyQt6>=6.4.0 --quiet
+"$VENV/bin/pip" install -r "$SCRIPT_DIR/requirements.txt" --quiet
 
 echo "==> Writing desktop entry..."
 DESKTOP_DIR="$HOME/.local/share/applications"

@@ -85,17 +85,17 @@ class ModLoadoutView(QWidget):
         header_lay.addWidget(info)
 
         hint = QLabel("Tip: Favorites from Mod Manager are preselected. Click any card to toggle selection.")
-        hint.setStyleSheet("color: #94a3b8;")
+        hint.setStyleSheet("color: #8b94a1;")
         header_lay.addWidget(hint)
 
         self._selected_count_lbl = QLabel("Selected: 0 mods")
-        self._selected_count_lbl.setStyleSheet("color: #7dd3fc; font-weight: 600;")
+        self._selected_count_lbl.setStyleSheet("color: #8fb4d6; font-weight: 600;")
         header_lay.addWidget(self._selected_count_lbl)
 
         layout.addWidget(header)
 
         self._empty_lbl = QLabel("No additional mods available")
-        self._empty_lbl.setStyleSheet("color: #64748b;")
+        self._empty_lbl.setStyleSheet("color: #7d8694;")
         self._empty_lbl.setContentsMargins(40, 0, 40, 0)
         self._empty_lbl.hide()
         layout.addWidget(self._empty_lbl)

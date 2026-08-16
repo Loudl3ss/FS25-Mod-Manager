@@ -50,8 +50,8 @@ class SettingsGroupWidget(QFrame):
         self.setObjectName("SettingsGroup")
         self.setStyleSheet(
             "QFrame#SettingsGroup {"
-            "background-color: #0d1323;"
-            "border: 1px solid #1e293b;"
+            "background-color: #0e1116;"
+            "border: 1px solid #161a21;"
             "border-radius: 18px;"
             "}"
         )
@@ -182,18 +182,18 @@ class GameplaySettingsView(QWidget):
         subtitle = QLabel("Configure your game world settings")
         subtitle.setObjectName("PageSubtitle")
         subtitle.setStyleSheet(
-            "color: #64748b;"
+            "color: #7d8694;"
             "font-size: 13px;"
         )
         header_layout.addWidget(subtitle)
 
         content_layout.addWidget(header)
 
-        self._add_settings_section(content_layout, "GENERAL", self._build_general_group)
-        self._add_settings_section(content_layout, "SEASONS", self._build_seasons_group)
-        self._add_settings_section(content_layout, "CROPS AND GROWTH", self._build_crops_growth_group)
-        self._add_settings_section(content_layout, "VEHICLE CONTROLS", self._build_vehicle_controls_group)
-        self._add_settings_section(content_layout, "AI WORKERS", self._build_ai_workers_group)
+        self._add_settings_section(content_layout, "General", self._build_general_group)
+        self._add_settings_section(content_layout, "Seasons", self._build_seasons_group)
+        self._add_settings_section(content_layout, "Crops and Growth", self._build_crops_growth_group)
+        self._add_settings_section(content_layout, "Vehicle Controls", self._build_vehicle_controls_group)
+        self._add_settings_section(content_layout, "AI Workers", self._build_ai_workers_group)
 
         content_layout.addStretch()
         scroll.setWidget(content)
@@ -207,7 +207,7 @@ class GameplaySettingsView(QWidget):
         content_layout.addWidget(builder())
 
     def _build_general_group(self) -> SettingsGroupWidget:
-        general = SettingsGroupWidget("GENERAL", embed_title=False)
+        general = SettingsGroupWidget("General", embed_title=False)
 
         self.savegame_name_input = self._make_line_edit("Farm Name")
         general.add_row("Farm Name", self.savegame_name_input)
@@ -257,7 +257,7 @@ class GameplaySettingsView(QWidget):
         return general
 
     def _build_seasons_group(self) -> SettingsGroupWidget:
-        seasons = SettingsGroupWidget("SEASONS", embed_title=False)
+        seasons = SettingsGroupWidget("Seasons", embed_title=False)
 
         self.seasonal_growth_group = self._make_segmented_button_group(
             SEASONAL_GROWTH_OPTIONS,
@@ -277,7 +277,7 @@ class GameplaySettingsView(QWidget):
         return seasons
 
     def _build_crops_growth_group(self) -> SettingsGroupWidget:
-        crops = SettingsGroupWidget("CROPS AND GROWTH", embed_title=False)
+        crops = SettingsGroupWidget("Crops and Growth", embed_title=False)
 
         self.crop_destruction_group = self._make_segmented_button_group(
             TOGGLE_OPTIONS,
@@ -318,7 +318,7 @@ class GameplaySettingsView(QWidget):
         return crops
 
     def _build_vehicle_controls_group(self) -> SettingsGroupWidget:
-        vehicles = SettingsGroupWidget("VEHICLE CONTROLS", embed_title=False)
+        vehicles = SettingsGroupWidget("Vehicle Controls", embed_title=False)
 
         self.dirt_group = self._make_segmented_button_group(
             DIRT_OPTIONS,
@@ -353,7 +353,7 @@ class GameplaySettingsView(QWidget):
         return vehicles
 
     def _build_ai_workers_group(self) -> SettingsGroupWidget:
-        ai = SettingsGroupWidget("AI WORKERS", embed_title=False)
+        ai = SettingsGroupWidget("AI Workers", embed_title=False)
 
         self.ai_fuel_group = self._make_segmented_button_group(
             AI_REFILL_OPTIONS,
@@ -391,8 +391,8 @@ class GameplaySettingsView(QWidget):
         edit = QLineEdit()
         edit.setPlaceholderText("Enter a name for this farm")
         edit.setStyleSheet(
-            "QLineEdit { background: #111827; color: #ffffff; border: 1px solid #1e293b; border-radius: 10px; padding: 10px; }"
-            "QLineEdit:focus { border-color: #16a34a; background: #141b2f; }"
+            "QLineEdit { background: #0e1116; color: #ffffff; border: 1px solid #161a21; border-radius: 10px; padding: 10px; }"
+            "QLineEdit:focus { border-color: #3f7d51; background: #161a21; }"
         )
         edit.textChanged.connect(lambda value, key=setting_key: self._on_text_changed(key, value))
         return edit
@@ -422,8 +422,8 @@ class GameplaySettingsView(QWidget):
         combo.addItems(options)
         combo.currentTextChanged.connect(lambda value, key=setting_key: self._on_dropdown_changed(key, value))
         combo.setStyleSheet(
-            "QComboBox { background: #111827; color: #cbd5e1; padding: 8px; border-radius: 10px; border: 1px solid #334155; }"
-            "QComboBox QAbstractItemView { background: #1f2937; color: #cbd5e1; selection-background-color: #16a34a; }"
+            "QComboBox { background: #0e1116; color: #c2c9d3; padding: 8px; border-radius: 10px; border: 1px solid #2b313b; }"
+            "QComboBox QAbstractItemView { background: #161a21; color: #c2c9d3; selection-background-color: #3f7d51; }"
         )
         return combo
 
@@ -449,8 +449,8 @@ class GameplaySettingsView(QWidget):
         custom_input.setPlaceholderText("")
         custom_input.setFixedWidth(100)
         custom_input.setStyleSheet(
-            "QLineEdit { background: #111827; color: #ffffff; border: 1px solid #1e293b; border-radius: 10px; padding: 8px; }"
-            "QLineEdit:focus { border-color: #16a34a; background: #141b2f; }"
+            "QLineEdit { background: #0e1116; color: #ffffff; border: 1px solid #161a21; border-radius: 10px; padding: 8px; }"
+            "QLineEdit:focus { border-color: #3f7d51; background: #161a21; }"
         )
         custom_input.textChanged.connect(lambda value, key=setting_key: self._on_custom_value_changed(key, value))
         layout.addWidget(custom_input)
@@ -469,11 +469,11 @@ class GameplaySettingsView(QWidget):
         slider = QSlider(Qt.Orientation.Horizontal)
         slider.setRange(minimum, maximum)
         slider.setSingleStep(step)
-        slider.setStyleSheet("QSlider::handle:horizontal {background: #16a34a; width: 14px;}")
+        slider.setStyleSheet("QSlider::handle:horizontal {background: #3f7d51; width: 14px;}")
         layout.addWidget(slider, stretch=1)
 
         value_label = QLabel(str(minimum))
-        value_label.setStyleSheet("color: #e2e8f0; min-width: 40px;")
+        value_label.setStyleSheet("color: #d5dbe3; min-width: 40px;")
         layout.addWidget(value_label)
 
         slider.valueChanged.connect(lambda value, key=setting_key, label=value_label: self._on_slider_changed(key, value, label))
@@ -485,19 +485,19 @@ class GameplaySettingsView(QWidget):
     def _segment_button_stylesheet(self) -> str:
         return (
             "QPushButton {"
-            "background-color: #111827;"
-            "color: #cbd5e1;"
-            "border: 1px solid #334155;"
+            "background-color: #0e1116;"
+            "color: #c2c9d3;"
+            "border: 1px solid #2b313b;"
             "border-radius: 8px;"
             "padding: 8px 14px;"
             "}"
             "QPushButton:checked {"
-            "background-color: #16a34a;"
+            "background-color: #3f7d51;"
             "color: white;"
-            "border-color: #22c55e;"
+            "border-color: #5a9e6b;"
             "}"
             "QPushButton:hover {"
-            "background-color: #1f2937;"
+            "background-color: #161a21;"
             "}"
         )
 

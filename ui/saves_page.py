@@ -23,7 +23,6 @@ from PyQt6.QtWidgets import (
 from core.game_launcher import GameLauncher
 from core.save_manager import BackupInfo, SaveInfo, SaveManager
 from ui.assets import Icons
-from ui.layout_helpers import save_slot_grid_position
 from ui.widgets import HSeparator, SaveCard, StatCard
 
 
@@ -62,7 +61,7 @@ class SavesPage(QWidget):
         ttl_col.addWidget(sub)
         hdr.addLayout(ttl_col, stretch=1)
 
-        self._btn_launch_game = QPushButton("LAUNCH GAME")
+        self._btn_launch_game = QPushButton("Launch Game")
         self._btn_launch_game.setObjectName("LaunchBtn")
         self._btn_launch_game.clicked.connect(self._launch_game)
         hdr.addWidget(self._btn_launch_game, alignment=Qt.AlignmentFlag.AlignTop)
@@ -81,6 +80,32 @@ class SavesPage(QWidget):
 
         root.addWidget(HSeparator())
 
+        # ── Bulk action bar ──────────────────────────────────────────────────
+        bulk_row = QHBoxLayout()
+        bulk_row.setSpacing(8)
+
+        self._btn_select_all = QPushButton("Select all")
+        self._btn_select_all.setObjectName("ToolBtn")
+        self._btn_select_all.clicked.connect(self._toggle_select_all)
+        bulk_row.addWidget(self._btn_select_all)
+
+        self._lbl_selection = QLabel("Nothing selected")
+        self._lbl_selection.setObjectName("ModMeta")
+        bulk_row.addWidget(self._lbl_selection)
+        bulk_row.addStretch()
+
+        self._btn_bulk_backup = QPushButton("Backup selected")
+        self._btn_bulk_backup.setObjectName("ToolBtn")
+        self._btn_bulk_backup.clicked.connect(self._bulk_backup)
+        bulk_row.addWidget(self._btn_bulk_backup)
+
+        self._btn_bulk_delete = QPushButton("Delete selected")
+        self._btn_bulk_delete.setObjectName("DangerBtn")
+        self._btn_bulk_delete.clicked.connect(self._bulk_delete)
+        bulk_row.addWidget(self._btn_bulk_delete)
+
+        root.addLayout(bulk_row)
+
         # Scroll list of save cards
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -89,9 +114,10 @@ class SavesPage(QWidget):
         self._container = QWidget()
         self._grid = QGridLayout(self._container)
         self._grid.setContentsMargins(2, 4, 2, 4)
-        self._grid.setHorizontalSpacing(12)
-        self._grid.setVerticalSpacing(12)
-        self._grid.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self._grid.setHorizontalSpacing(0)
+        self._grid.setVerticalSpacing(6)
+        self._grid.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self._grid.setColumnStretch(0, 1)
 
         scroll.setWidget(self._container)
         root.addWidget(scroll, stretch=1)
@@ -111,14 +137,87 @@ class SavesPage(QWidget):
         total_backups = len(self._manager.get_backups())
         self._stat_backups.set_value(str(total_backups))
 
+        self._cards = []
         for index, save in enumerate(saves):
             card = SaveCard(save)
             card.backup_requested.connect(self._backup_save)
             card.restore_requested.connect(self._show_restore_dialog)
             card.delete_requested.connect(self._delete_save)
             card.copy_requested.connect(self._copy_save)
-            row, column = save_slot_grid_position(save.slot)
-            self._grid.addWidget(card, row, column)
+            card.selection_changed.connect(self._update_selection_state)
+            # Single column list, in slot order.
+            self._grid.addWidget(card, index, 0)
+            self._cards.append(card)
+        self._update_selection_state()
+
+    # ── Bulk actions ──────────────────────────────────────────────────────────
+    def _selected_saves(self) -> list[SaveInfo]:
+        return [c.save_info for c in getattr(self, "_cards", []) if c.is_checked()]
+
+    def _selectable_cards(self):
+        return [c for c in getattr(self, "_cards", []) if c.save_info.exists]
+
+    def _update_selection_state(self):
+        count = len(self._selected_saves())
+        selectable = len(self._selectable_cards())
+        self._lbl_selection.setText(
+            "Nothing selected" if count == 0 else f"{count} of {selectable} selected"
+        )
+        self._btn_bulk_backup.setEnabled(count > 0)
+        self._btn_bulk_delete.setEnabled(count > 0)
+        self._btn_select_all.setEnabled(selectable > 0)
+        self._btn_select_all.setText(
+            "Clear selection" if count and count == selectable else "Select all"
+        )
+
+    def _toggle_select_all(self):
+        cards = self._selectable_cards()
+        select = len(self._selected_saves()) != len(cards)
+        for card in cards:
+            card.set_checked(select)
+        self._update_selection_state()
+
+    def _bulk_backup(self):
+        saves = self._selected_saves()
+        if not saves:
+            return
+        done, failed = [], []
+        for save in saves:
+            ok, _ = self._manager.backup_save(save.slot)
+            (done if ok else failed).append(save.slot)
+
+        self._load_saves()
+        summary = f"Backed up {len(done)} save(s)."
+        if failed:
+            summary += f"\nFailed for slot(s): {', '.join(str(s) for s in failed)}"
+        QMessageBox.information(self, "Backup", summary)
+
+    def _bulk_delete(self):
+        saves = self._selected_saves()
+        if not saves:
+            return
+        slots = ", ".join(str(s.slot) for s in saves)
+        reply = QMessageBox.question(
+            self,
+            "Delete saves",
+            f"Delete {len(saves)} save(s) permanently?\n\nSlots: {slots}\n\n"
+            "This cannot be undone. Back them up first if unsure.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        done, failed = [], []
+        for save in saves:
+            ok, _ = self._manager.delete_save(save.slot)
+            (done if ok else failed).append(save.slot)
+
+        self._load_saves()
+        summary = f"Deleted {len(done)} save(s)."
+        if failed:
+            summary += f"\nFailed for slot(s): {', '.join(str(s) for s in failed)}"
+        QMessageBox.information(self, "Delete", summary)
 
     # ── Actions ───────────────────────────────────────────────────────────────
     def _backup_save(self, save: SaveInfo):

@@ -69,7 +69,18 @@ class RadioManager:
                 stations.append(href)
         return stations
 
-    def add_web_station(self, url: str) -> bool:
+    def get_stations(self) -> list[dict[str, str]]:
+        """Stations with their display names, for UI listings."""
+        tree = self._load_tree()
+        root = self._root(tree)
+        stations: list[dict[str, str]] = []
+        for node in self._iter_station_nodes(root):
+            href = (node.get("href") or "").strip()
+            if href:
+                stations.append({"url": href, "name": (node.get("name") or "").strip()})
+        return stations
+
+    def add_web_station(self, url: str, name: str = "") -> bool:
         clean_url = self._normalize_url(url)
         if not clean_url:
             return False
@@ -84,7 +95,11 @@ class RadioManager:
             return False
 
         # ET.SubElement appends as the last child, which keeps user-added radios at the end.
-        ET.SubElement(root, "streamingInternetRadio", {"href": clean_url})
+        attrs = {"href": clean_url}
+        if name.strip():
+            # The game reads href; the name is carried purely for this app's list.
+            attrs["name"] = name.strip()
+        ET.SubElement(root, "streamingInternetRadio", attrs)
         self._safe_write(tree)
         return True
 

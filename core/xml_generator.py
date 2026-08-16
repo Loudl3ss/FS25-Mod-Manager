@@ -207,8 +207,9 @@ class CareerXmlBuilder:
             mod_elem.set("required", "true" if mod.get("id") == self._val("mapId") else "false")
             mod_elem.set("fileHash", "")
 
-        self._indent(root)
-        return ET.ElementTree(root)
+        tree = ET.ElementTree(root)
+        ET.indent(tree, space="  ")
+        return tree
 
     def build_string(self) -> str:
         """Build XML and return as formatted string."""
@@ -225,21 +226,3 @@ class CareerXmlBuilder:
         xml_content = self.build_string()
         with open(path, "w", encoding="utf-8") as f:
             f.write(xml_content)
-
-    @staticmethod
-    def _indent(elem: ET.Element, level: int = 0):
-        """Add pretty-print indentation to XML tree."""
-        indent_str = "\n" + level * "  "
-        if len(elem):
-            if not elem.text or not elem.text.strip():
-                elem.text = indent_str + "  "
-            if not elem.tail or not elem.tail.strip():
-                elem.tail = indent_str
-            for child in elem:
-                CareerXmlBuilder._indent(child, level + 1)
-            last_child = elem[-1]
-            if not last_child.tail or not last_child.tail.strip():
-                last_child.tail = indent_str
-        else:
-            if level and (not elem.tail or not elem.tail.strip()):
-                elem.tail = indent_str

@@ -22,6 +22,7 @@ from core.thumbnail_loader import ThumbnailLoader
 from ui.assets import Icons
 from ui.favorite_grid import FavoriteModGrid
 from ui.mod_grid import ModCard, ResponsiveModGrid
+from ui.style_helpers import set_bool_property
 from ui.widgets import Badge, HSeparator, StatCard
 
 
@@ -95,7 +96,7 @@ class ModsPage(QWidget):
         btn_refresh.setObjectName("ToolBtn")
         btn_refresh.setIcon(Icons.get_qicon(Icons.RESCAN))
         btn_refresh.setIconSize(QSize(18, 18))
-        btn_refresh.setFixedSize(140, 36)
+        btn_refresh.setFixedHeight(30)
         btn_refresh.clicked.connect(self.reload_mods)
         hdr.addWidget(btn_refresh)
 
@@ -104,7 +105,7 @@ class ModsPage(QWidget):
             btn_new_game.setObjectName("PrimaryBtn")
             btn_new_game.setIcon(Icons.get_qicon(Icons.PLUS))
             btn_new_game.setIconSize(QSize(18, 18))
-            btn_new_game.setFixedSize(140, 36)
+            btn_new_game.setFixedHeight(30)
             btn_new_game.clicked.connect(self._emit_new_game_once)
             hdr.addWidget(btn_new_game)
 
@@ -130,16 +131,16 @@ class ModsPage(QWidget):
         flt.setSpacing(8)
 
         show_lbl = QLabel("SHOW:")
-        show_lbl.setStyleSheet("color: #9ca3af; font-weight: bold; font-size: 13px;")
+        show_lbl.setStyleSheet("color: #8b94a1; font-weight: bold; font-size: 13px;")
         flt.addWidget(show_lbl)
         
         self._filter_combo = QComboBox()
         self._filter_combo.addItems(["All mods", "Favorites"] + self._MAJOR_GROUPS)
         self._filter_combo.setStyleSheet("""
             QComboBox {
-                background-color: #1e293b;
-                color: #f8fafc;
-                border: 1px solid #334155;
+                background-color: #161a21;
+                color: #e6eaf0;
+                border: 1px solid #2b313b;
                 border-radius: 6px;
                 padding: 6px 12px;
                 font-weight: bold;
@@ -149,9 +150,9 @@ class ModsPage(QWidget):
                 border: none;
             }
             QComboBox QAbstractItemView {
-                background-color: #1e293b;
-                color: #f8fafc;
-                selection-background-color: #3b82f6;
+                background-color: #161a21;
+                color: #e6eaf0;
+                selection-background-color: #5b87b8;
             }
         """)
         self._filter_combo.currentTextChanged.connect(self._on_combo_filter)
@@ -202,6 +203,7 @@ class ModsPage(QWidget):
         left_lay.addWidget(self._available_header)
 
         self._grid_view = ResponsiveModGrid()
+        self._grid_view.backgroundClicked.connect(self._clear_selection)
         left_lay.addWidget(self._grid_view)
 
         splitter.addWidget(left)
@@ -312,7 +314,7 @@ class ModsPage(QWidget):
                 mod.category,
                 thumbnail_id=mod.thumbnail_id,
             )
-            card.modClicked.connect(self._on_mod_clicked)
+            card.modClicked.connect(lambda _id, c=card: self._on_mod_clicked(_id, c))
             card.favoriteToggled.connect(self._on_favorite_toggled)
 
         # Favorites grid (shows favorites regardless of filter)
@@ -333,7 +335,7 @@ class ModsPage(QWidget):
                 mod.category,
                 thumbnail_id=mod.thumbnail_id,
             )
-            card.modClicked.connect(self._on_mod_clicked)
+            card.modClicked.connect(lambda _id, c=card: self._on_mod_clicked(_id, c))
             card.favoriteToggled.connect(self._on_favorite_toggled)
 
         has_favorites = len(favorite_mods) > 0
@@ -342,10 +344,12 @@ class ModsPage(QWidget):
         self._fav_separator.setVisible(has_favorites)
         self._fav_available_gap.setVisible(has_favorites)
 
-    def _on_mod_clicked(self, mod_id: str):
+    def _on_mod_clicked(self, mod_id: str, card=None):
         for mod in self._filtered_mods():
             if mod.id == mod_id:
-                self._select_card(None, mod)
+                # The clicked card must be passed through: without it nothing
+                # gets the selected outline, only the detail panel updates.
+                self._select_card(card, mod)
                 break
 
     def _filtered_mods(self) -> list[ModInfo]:
@@ -364,6 +368,13 @@ class ModsPage(QWidget):
                       if q in (m.title or m.name).lower()
                       or q in (m.author or "").lower()]
         return result
+
+    def _clear_selection(self):
+        """Deselect the current mod and empty the detail panel."""
+        if self._selected_card and hasattr(self._selected_card, "set_selected"):
+            self._selected_card.set_selected(False)
+        self._selected_card = None
+        self._detail_panel.clear()
 
     def _select_card(self, card, mod: ModInfo):
         if self._selected_card and hasattr(self._selected_card, "set_selected"):
@@ -418,10 +429,8 @@ class DetailPanel(QWidget):
         lay.setSpacing(12)
 
         self._thumb_frame = QFrame()
-        self._thumb_frame.setFixedSize(120, 120)
-        self._thumb_frame.setStyleSheet(
-            "background: #1e293b; border-radius: 12px;"
-        )
+        self._thumb_frame.setFixedSize(96, 96)
+        self._thumb_frame.setObjectName("DetailThumb")
         _thumb_inner = QVBoxLayout(self._thumb_frame)
         _thumb_inner.setContentsMargins(5, 5, 5, 5)
         _thumb_inner.setSpacing(0)
@@ -457,15 +466,15 @@ class DetailPanel(QWidget):
         self._desc_lbl.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         lay.addWidget(self._desc_lbl, stretch=1)
 
-        self._delete_btn = QPushButton("DELETE")
+        self._delete_btn = QPushButton("Delete")
         self._delete_btn.setObjectName("DetailDeleteBtn")
         self._delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._delete_btn.setFixedSize(140, 36)
+        self._delete_btn.setFixedHeight(30)
         self._delete_btn.setStyleSheet("""
             QPushButton#DetailDeleteBtn {
                 background-color: transparent;
-                color: #ef4444;
-                border: 2px solid #ef4444;
+                color: #c96f6f;
+                border: 2px solid #c96f6f;
                 border-radius: 6px;
                 font-size: 13px;
                 font-weight: 700;
@@ -473,14 +482,14 @@ class DetailPanel(QWidget):
                 padding: 2px 12px;
             }
             QPushButton#DetailDeleteBtn:hover {
-                background-color: #ef4444;
+                background-color: #c96f6f;
                 color: #ffffff;
-                border: 2px solid #ef4444;
+                border: 2px solid #c96f6f;
             }
             QPushButton#DetailDeleteBtn:pressed {
-                background-color: #dc2626;
+                background-color: #c96f6f;
                 color: #ffffff;
-                border: 2px solid #dc2626;
+                border: 2px solid #c96f6f;
             }
         """)
         self._delete_btn.clicked.connect(self._on_delete_clicked)
@@ -490,12 +499,18 @@ class DetailPanel(QWidget):
         self.clear()
 
     def clear(self):
-        self._icon_lbl.setText("🌾")
+        self._set_thumb_filled(False)
+        self._icon_lbl.clear()
+        self._icon_lbl.setText("")
         self._title_lbl.setText("Select a mod")
         self._meta_lbl.setText("")
         self._desc_lbl.setText("Click on a mod in the list\nto view details here.")
         self._current_mod = None
         self._delete_btn.hide()
+
+    def _set_thumb_filled(self, filled: bool) -> None:
+        """Only draw the thumbnail plate once there is something to show."""
+        set_bool_property(self._thumb_frame, "filled", filled)
 
     def show_mod(self, mod: ModInfo):
         self._current_mod = mod
@@ -508,13 +523,15 @@ class DetailPanel(QWidget):
         )
         if not pix.isNull():
             self._icon_lbl.setPixmap(
-                pix.scaled(110, 110,
+                pix.scaled(88, 88,
                            Qt.AspectRatioMode.KeepAspectRatio,
                            Qt.TransformationMode.SmoothTransformation)
             )
+            self._set_thumb_filled(True)
         else:
             self._icon_lbl.setText("🌾")
             self._icon_lbl.setPixmap(QPixmap())
+            self._set_thumb_filled(True)
 
         self._title_lbl.setText(mod.title or mod.name)
 

@@ -1,11 +1,12 @@
 """Isolated online scraper architecture for FS25 ModHub pages."""
 from __future__ import annotations
 
-from pathlib import Path
 from urllib.parse import parse_qs, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
+
+from core.scraper_common import build_session, download_mod, flatten_category_tree
 
 
 class FarmingSimulatorScraper:
@@ -14,9 +15,7 @@ class FarmingSimulatorScraper:
     BASE_URL = "https://www.farming-simulator.com/mods.php"
 
     def _build_session(self) -> requests.Session:
-        session = requests.Session()
-        session.headers.update({"User-Agent": "FS25-Mod-Manager/OnlineScraper"})
-        return session
+        return build_session("FS25-Mod-Manager/OnlineScraper")
 
     def fetch_mods(self, filter_key: str = "latest", page: int = 0) -> list[dict[str, object]]:
         """Fetch FS25 mod cards for a specific filter and page."""
@@ -69,31 +68,9 @@ class FarmingSimulatorScraper:
 
         return mods
 
-    def fetch_latest_mods(self, page: int = 0) -> list[dict[str, object]]:
-        """Backward-compatible helper for latest mods."""
-        return self.fetch_mods(filter_key="latest", page=page)
-
     def fetch_category_filters(self) -> list[dict[str, str]]:
         """Discover available FS25 category filters from the ModHub menu."""
-        tree = self.fetch_category_tree()
-        flat: list[dict[str, str]] = []
-        seen: set[str] = set()
-
-        for item in tree:
-            filter_key = str(item.get("filter", "")).strip()
-            label = str(item.get("label", "")).strip()
-            if filter_key and label and filter_key not in seen:
-                flat.append({"label": label, "filter": filter_key})
-                seen.add(filter_key)
-
-            for child in item.get("children", []):
-                child_filter = str(child.get("filter", "")).strip()
-                child_label = str(child.get("label", "")).strip()
-                if child_filter and child_label and child_filter not in seen:
-                    flat.append({"label": child_label, "filter": child_filter})
-                    seen.add(child_filter)
-
-        return flat
+        return flatten_category_tree(self.fetch_category_tree())
 
     def fetch_category_tree(self) -> list[dict[str, object]]:
         """Discover FS25 category hierarchy (top-level + nested subcategories)."""
@@ -192,23 +169,6 @@ class FarmingSimulatorScraper:
 
     def download_mod(self, download_url: str, target_dir: str, referer_url: str = "", filename: str = "") -> str:
         """Download a mod zip into the target directory and return its saved path."""
-        Path(target_dir).mkdir(parents=True, exist_ok=True)
-
-        resolved_name = filename.strip() if filename else Path(urlparse(download_url).path).name
-        if not resolved_name:
-            raise ValueError("Unable to determine download filename")
-
-        destination = Path(target_dir) / resolved_name
-        temp_destination = destination.with_suffix(destination.suffix + ".part")
-
         with self._build_session() as session:
-            headers = {"Referer": referer_url} if referer_url else None
-            with session.get(download_url, headers=headers, timeout=60, stream=True) as response:
-                response.raise_for_status()
-                with open(temp_destination, "wb") as handle:
-                    for chunk in response.iter_content(chunk_size=1024 * 256):
-                        if chunk:
-                            handle.write(chunk)
-
-        temp_destination.replace(destination)
-        return str(destination)
+            return download_mod(session, download_url, target_dir,
+                                referer_url=referer_url, filename=filename)

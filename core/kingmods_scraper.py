@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from urllib.parse import parse_qs, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
 
 from core.logging_utils import get_logger
+from core.scraper_common import build_session, download_mod, flatten_category_tree
 
 logger = get_logger("core.kingmods_scraper")
 
@@ -101,9 +101,7 @@ class KingModsScraper:
     ]
 
     def _build_session(self) -> requests.Session:
-        session = requests.Session()
-        session.headers.update({"User-Agent": "FS25-Mod-Manager/KingModsScraper"})
-        return session
+        return build_session("FS25-Mod-Manager/KingModsScraper")
 
     def _filter_to_url(self, filter_key: str, page: int) -> str:
         key = (filter_key or self.DEFAULT_FILTER).strip()
@@ -365,27 +363,7 @@ class KingModsScraper:
 
     def fetch_category_filters(self) -> list[dict[str, str]]:
         """Return available flat filters for compatibility."""
-        flat: list[dict[str, str]] = []
-        seen: set[str] = set()
-
-        for node in self.fetch_category_tree():
-            node_filter = str(node.get("filter", "")).strip()
-            node_label = str(node.get("label", "")).strip()
-            if node_filter and node_filter not in seen:
-                flat.append({"label": node_label, "filter": node_filter})
-                seen.add(node_filter)
-
-            children = node.get("children", [])
-            if not isinstance(children, list):
-                continue
-            for child in children:
-                child_filter = str(child.get("filter", "")).strip()
-                child_label = str(child.get("label", "")).strip()
-                if child_filter and child_filter not in seen:
-                    flat.append({"label": child_label, "filter": child_filter})
-                    seen.add(child_filter)
-
-        return flat
+        return flatten_category_tree(self.fetch_category_tree())
 
     def fetch_mod_details(self, details_url: str) -> dict[str, object]:
         """Fetch detail-page data for a single KingMods mod."""
@@ -462,29 +440,7 @@ class KingModsScraper:
 
     def download_mod(self, download_url: str, target_dir: str, referer_url: str = "", filename: str = "") -> str:
         """Download a mod zip/file into target directory and return saved path."""
-        Path(target_dir).mkdir(parents=True, exist_ok=True)
-
-        parsed = urlparse(download_url)
-        fallback_name = Path(parsed.path).name or "kingmods-download.zip"
-        resolved_name = filename.strip() if filename else fallback_name
-        if not Path(resolved_name).suffix:
-            resolved_name = f"{resolved_name}.zip"
-
-        destination = Path(target_dir) / resolved_name
-        temp_destination = destination.with_suffix(destination.suffix + ".part")
-
-        try:
-            with self._build_session() as session:
-                headers = {"Referer": referer_url} if referer_url else None
-                with session.get(download_url, headers=headers, timeout=90, stream=True, allow_redirects=True) as response:
-                    response.raise_for_status()
-                    with open(temp_destination, "wb") as handle:
-                        for chunk in response.iter_content(chunk_size=1024 * 256):
-                            if chunk:
-                                handle.write(chunk)
-        except (requests.RequestException, OSError) as exc:
-            logger.warning("download_mod failed for %s: %s", download_url, exc)
-            raise
-
-        temp_destination.replace(destination)
-        return str(destination)
+        with self._build_session() as session:
+            return download_mod(session, download_url, target_dir,
+                                referer_url=referer_url, filename=filename,
+                                default_name="kingmods-download.zip", timeout=90)

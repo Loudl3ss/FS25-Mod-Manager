@@ -2,95 +2,125 @@
 from __future__ import annotations
 
 import sys
-import os
-import signal
-import time
+from pathlib import Path
 
-from PyQt6.QtCore import QSettings
+from PyQt6.QtCore import QLockFile, QSettings
 from PyQt6.QtGui import QFont
-from PyQt6.QtWidgets import QApplication, QFileDialog, QMessageBox
+from PyQt6.QtWidgets import (
+    QApplication, QFileDialog, QInputDialog, QMessageBox, QProgressDialog,
+)
 
 from core.fs25_detector import FS25Detector
 from ui.main_window import MainWindow
 from ui.styles import DARK_THEME
-from core.version import APP_VERSION
 
-LOCK_FILE = "/tmp/mod_manager.lock"
-
-def enforce_single_instance():
-    """Ensure only one instance is running, killing the previous one via lock file."""
-    if os.path.exists(LOCK_FILE):
-        try:
-            with open(LOCK_FILE, "r") as f:
-                old_pid = int(f.read().strip())
-            
-            # Check if process is running
-            os.kill(old_pid, 0)
-            
-            # Process exists, let's terminate it
-            os.kill(old_pid, signal.SIGTERM)
-            
-            # Wait up to 1 second
-            for _ in range(10):
-                time.sleep(0.1)
-                try:
-                    os.kill(old_pid, 0)
-                except OSError:
-                    break
-            else:
-                # Still running, force kill
-                os.kill(old_pid, signal.SIGKILL)
-                
-        except (ValueError, OSError):
-            # PID not running, or permission denied, or invalid pid
-            pass
-            
-    # Write current PID to lock file
-    try:
-        with open(LOCK_FILE, "w") as f:
-            f.write(str(os.getpid()))
-    except IOError:
-        pass
+# Held for the process lifetime; released when the process exits.
+# New filename on purpose: the pre-1.2 lock file held a bare PID, which
+# QLockFile cannot parse and would wait out as stale.
+_lock = QLockFile("/tmp/fs25-mod-manager.lock")
 
 
-def choose_path(app: QApplication) -> str | None:
-    """Show a dialog to let the user manually pick the FS25 data folder."""
-    msg = QMessageBox()
-    msg.setWindowTitle("FS25 Manager – Setup")
-    msg.setIcon(QMessageBox.Icon.Question)
-    msg.setText(
-        "Farming Simulator 25 data folder not found automatically.\n\n"
-        "Please select your FS25 user data directory manually.\n"
-        "(It usually contains 'mods' and 'savegame1' folders.)"
-    )
-    msg.setStandardButtons(
-        QMessageBox.StandardButton.Open | QMessageBox.StandardButton.Cancel
-    )
-    msg.button(QMessageBox.StandardButton.Open).setText("Browse…")
-    result = msg.exec()
-
-    if result == QMessageBox.StandardButton.Cancel:
-        return None
-
+def browse_for_path() -> str | None:
+    """Let the user pick the FS25 data folder by hand."""
     folder = QFileDialog.getExistingDirectory(
         None,
         "Select FS25 User Data Folder",
-        str(user_home()),
+        str(Path.home()),
     )
     return folder or None
 
 
-def user_home() -> "Path":
-    from pathlib import Path
-    return Path.home()
+def auto_detect_path() -> list[str]:
+    """Scan for FS25 installs behind a progress dialog. Returns what it found."""
+    dialog = QProgressDialog("Looking for Farming Simulator 25…", "Cancel", 0, 1)
+    dialog.setWindowTitle("FS25 Manager – Searching")
+    dialog.setMinimumDuration(0)
+    dialog.setAutoClose(False)
+    dialog.setValue(0)
+
+    def on_progress(done: int, total: int, path: str) -> bool:
+        dialog.setMaximum(total)
+        dialog.setValue(done)
+        dialog.setLabelText(f"Looking for Farming Simulator 25…\n\n{path}")
+        # ponytail: scan runs on the GUI thread; it is a few hundred stat()
+        # calls. Move to a QThread if it ever blocks noticeably.
+        QApplication.processEvents()
+        return not dialog.wasCanceled()
+
+    try:
+        return FS25Detector.search(progress=on_progress)
+    finally:
+        dialog.close()
+
+
+def confirm_path(found: list[str]) -> str | None:
+    """Ask the user to confirm a detected path, or fall back to browsing."""
+    if not found:
+        install = FS25Detector.find_game_install()
+        msg = QMessageBox()
+        msg.setWindowTitle("FS25 Manager – Setup")
+        msg.setIcon(QMessageBox.Icon.Question)
+        if install:
+            msg.setText("Farming Simulator 25 is installed, but has no user data yet.")
+            msg.setInformativeText(
+                f"Game found at:\n{install}\n\n"
+                "Start the game once so it creates its mods and savegame folders, "
+                "then reopen FS25 Manager. You can also select the folder yourself."
+            )
+        else:
+            msg.setText(
+                "Farming Simulator 25 data folder not found automatically.\n\n"
+                "Please select your FS25 user data directory manually.\n"
+                "(It usually contains 'mods' and 'savegame1' folders.)"
+            )
+        msg.setStandardButtons(
+            QMessageBox.StandardButton.Open | QMessageBox.StandardButton.Cancel
+        )
+        msg.button(QMessageBox.StandardButton.Open).setText("Browse…")
+        if msg.exec() == QMessageBox.StandardButton.Cancel:
+            return None
+        return browse_for_path()
+
+    if len(found) > 1:
+        choice, ok = QInputDialog.getItem(
+            None,
+            "FS25 Manager – Setup",
+            "Several Farming Simulator 25 folders were found.\nWhich one should be used?",
+            found,
+            0,
+            False,
+        )
+        return choice if ok else None
+
+    msg = QMessageBox()
+    msg.setWindowTitle("FS25 Manager – Setup")
+    msg.setIcon(QMessageBox.Icon.Question)
+    msg.setText("Found Farming Simulator 25 here:")
+    msg.setInformativeText(found[0])
+    msg.setStandardButtons(
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Open
+    )
+    msg.button(QMessageBox.StandardButton.Yes).setText("Use this folder")
+    msg.button(QMessageBox.StandardButton.Open).setText("Choose another…")
+    msg.setDefaultButton(QMessageBox.StandardButton.Yes)
+
+    if msg.exec() == QMessageBox.StandardButton.Yes:
+        return found[0]
+    return browse_for_path()
 
 
 def main():
-    enforce_single_instance()
-    
     app = QApplication(sys.argv)
     app.setApplicationName("FS25 Manager")
     app.setOrganizationName("FS25Tools")
+
+    if not _lock.tryLock(0):
+        QMessageBox.information(
+            None,
+            "FS25 Manager",
+            "FS25 Manager is already running.",
+        )
+        sys.exit(0)
 
     # Apply global dark theme
     app.setStyleSheet(DARK_THEME)
@@ -101,17 +131,13 @@ def main():
     app.setFont(font)
 
     settings = QSettings()
-    
+
     # 1. Try to load last saved path
     data_path = settings.value("last_data_path", "")
 
-    # 2. Try to auto-detect FS25 path if saved path is invalid or empty
+    # 2. Scan for installs, then let the user confirm what was found
     if not data_path or not FS25Detector.validate_path(data_path):
-        data_path = FS25Detector.find_user_data_path()
-
-    # 3. Prompt user if both failed
-    if not data_path or not FS25Detector.validate_path(data_path):
-        data_path = choose_path(app)
+        data_path = confirm_path(auto_detect_path())
         if not data_path:
             sys.exit(0)
 

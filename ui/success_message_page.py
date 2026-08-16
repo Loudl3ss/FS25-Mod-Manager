@@ -35,9 +35,9 @@ class GameCreatedDialog(QDialog):
         card.setFixedWidth(560)
         card.setStyleSheet("""
             QWidget#GameCreatedCard {
-                background-color: #1a1f2e;
+                background-color: #161a21;
                 border-radius: 16px;
-                border: 1px solid #334155;
+                border: 1px solid #2b313b;
             }
             QLabel {
                 background: transparent;
@@ -58,14 +58,14 @@ class GameCreatedDialog(QDialog):
         # Title
         title_lbl = QLabel("Save Game Created!")
         title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_lbl.setStyleSheet("color: #f1f5f9; font-size: 22px; font-weight: 700;")
+        title_lbl.setStyleSheet("color: #e6eaf0; font-size: 22px; font-weight: 700;")
         layout.addWidget(title_lbl)
         layout.addSpacing(10)
 
         # Subtitle — green
         sub_lbl = QLabel(f'"{save_name}" has been created.')
         sub_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sub_lbl.setStyleSheet("color: #4ade80; font-size: 15px; font-weight: 500;")
+        sub_lbl.setStyleSheet("color: #5a9e6b; font-size: 15px; font-weight: 500;")
         sub_lbl.setWordWrap(True)
         layout.addWidget(sub_lbl)
         layout.addSpacing(10)
@@ -76,7 +76,7 @@ class GameCreatedDialog(QDialog):
             "in Farming Simulator 25."
         )
         body_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        body_lbl.setStyleSheet("color: #94a3b8; font-size: 13px;")
+        body_lbl.setStyleSheet("color: #8b94a1; font-size: 13px;")
         body_lbl.setWordWrap(True)
         layout.addWidget(body_lbl)
         layout.addSpacing(32)
@@ -91,17 +91,17 @@ class GameCreatedDialog(QDialog):
         btn_another.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_another.setStyleSheet("""
             QPushButton {
-                background-color: #2d3748;
-                color: #e2e8f0;
-                border: 1px solid #4a5568;
+                background-color: #2b313b;
+                color: #d5dbe3;
+                border: 1px solid #414b59;
                 border-radius: 8px;
                 font-size: 14px;
                 font-weight: 600;
                 padding: 0 20px;
             }
             QPushButton:hover {
-                background-color: #374151;
-                border-color: #6b7280;
+                background-color: #2b313b;
+                border-color: #7d8694;
             }
         """)
         btn_another.clicked.connect(self._on_another)
@@ -113,21 +113,21 @@ class GameCreatedDialog(QDialog):
         btn_launch.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_launch.setStyleSheet("""
             QPushButton {
-                background-color: #2ecc71;
-                color: #0b1220;
-                border: 1px solid #2ecc71;
+                background-color: #4a8c5c;
+                color: #0b0e12;
+                border: 1px solid #4a8c5c;
                 border-radius: 8px;
                 font-size: 14px;
                 font-weight: 700;
                 padding: 0 20px;
             }
             QPushButton:hover {
-                background-color: #27ae60;
-                border-color: #27ae60;
+                background-color: #3f7a4f;
+                border-color: #3f7a4f;
             }
             QPushButton:pressed {
-                background-color: #1e8449;
-                border-color: #1e8449;
+                background-color: #356a45;
+                border-color: #356a45;
             }
         """)
         btn_launch.clicked.connect(self._on_launch_game)
@@ -138,7 +138,7 @@ class GameCreatedDialog(QDialog):
         btn_hub.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_hub.setStyleSheet("""
             QPushButton {
-                background-color: #16a34a;
+                background-color: #3f7d51;
                 color: #ffffff;
                 border: none;
                 border-radius: 8px;
@@ -147,7 +147,7 @@ class GameCreatedDialog(QDialog):
                 padding: 0 20px;
             }
             QPushButton:hover {
-                background-color: #15803d;
+                background-color: #356a45;
             }
         """)
         btn_hub.clicked.connect(self._on_hub)

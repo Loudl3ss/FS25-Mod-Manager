@@ -167,11 +167,10 @@ class SaveManager:
         if not os.path.isdir(save_path):
             return False, "Save slot does not exist"
         try:
-            for entry in os.scandir(save_path):
-                if entry.is_dir(follow_symlinks=False):
-                    shutil.rmtree(entry.path)
-                else:
-                    os.remove(entry.path)
+            # Remove the slot folder itself: get_save() treats any existing
+            # directory as a live save, so emptying it leaves a ghost entry
+            # that still reports as present and cannot be deleted again.
+            shutil.rmtree(save_path)
             return True, "Deleted"
         except OSError as e:
             return False, str(e)
@@ -370,7 +369,7 @@ class SaveManager:
         placeables_list = ET.SubElement(root, "placeables")
         
         tree = ET.ElementTree(root)
-        self._indent_xml(root)
+        ET.indent(tree, space="  ")
         tree.write(xml_path, encoding="utf-8", xml_declaration=True)
 
     def _store_mod_references(self, save_path: str, mod_names: list[str]):
@@ -379,21 +378,3 @@ class SaveManager:
         with open(mods_file, "w", encoding="utf-8") as f:
             for mod_name in mod_names:
                 f.write(f"{mod_name}\n")
-
-    @staticmethod
-    def _indent_xml(elem, level=0):
-        """Add pretty-printing indentation to XML tree."""
-        indent_str = "\n" + level * "  "
-        if len(elem):
-            if not elem.text or not elem.text.strip():
-                elem.text = indent_str + "  "
-            if not elem.tail or not elem.tail.strip():
-                elem.tail = indent_str
-            for child in elem:
-                SaveManager._indent_xml(child, level + 1)
-            if not child.tail or not child.tail.strip():
-                child.tail = indent_str
-        else:
-            if level and (not elem.tail or not elem.tail.strip()):
-                elem.tail = indent_str
-

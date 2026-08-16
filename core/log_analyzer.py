@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 
@@ -13,10 +12,6 @@ class LogAnalyzer:
     """Parse and categorize FS25 log entries."""
 
     DEFAULT_LOG_FILENAME = "log.txt"
-    # Optional fallback path used only when configured log path is missing.
-    STATIC_BAZZITE_LOG_PATH = os.path.expanduser(
-        "~/.steam/steam/steamapps/compatdata/2243200/pfx/drive_c/users/steamuser/Documents/My Games/FarmingSimulator2025/log.txt"
-    )
 
     # Pattern dictionary inspired by your reference implementation.
     ERROR_DICTIONARY = [
@@ -69,6 +64,12 @@ class LogAnalyzer:
             "action": "The game is overloaded with too many mods or high-resolution textures. Delete unnecessary mods or lower your graphics settings.",
         },
         {
+            "pattern": re.compile(r"Failed to read button mapping in file .*[/\\]([^/\\]+)$", re.IGNORECASE),
+            "human_title": "Controller Mapping Skipped",
+            "human_msg": "Input device profile '{0}' could not be read.",
+            "action": "Harmless unless you use that controller. The game falls back to default bindings; reconfigure the device in the game's control settings if needed.",
+        },
+        {
             "pattern": re.compile(
                 r"(?:corrupt|invalid).*(?:zip|archive)|(?:zip|archive).*(?:corrupt|invalid)|not a zip archive",
                 re.IGNORECASE,
@@ -84,13 +85,9 @@ class LogAnalyzer:
         self.log_path = self.base_path / self.DEFAULT_LOG_FILENAME
 
     def _resolve_log_path(self) -> Path:
-        if self.log_path.exists() and self.log_path.is_file():
-            return self.log_path
-
-        fallback = Path(self.STATIC_BAZZITE_LOG_PATH)
-        if fallback.exists() and fallback.is_file():
-            return fallback
-
+        # The data folder is resolved once at startup by FS25Detector, so the
+        # log always sits inside it. No guessing at other installs here: that
+        # would make the log view depend on whatever else is on the machine.
         return self.log_path
 
     def _translate_line(self, raw_line: str) -> dict[str, str]:
@@ -114,14 +111,47 @@ class LogAnalyzer:
                     "raw": raw_line.strip(),
                 }
 
+        # No pattern matched: show what the game actually said instead of a
+        # generic sentence that tells the user nothing.
+        detail = re.sub(r"^\s*(Error|Warning|Exception):\s*", "", raw_line.strip())
         return {
             "type": issue_type,
-            "human_title": "Unknown Error",
-            "human_action": "Review the raw log line below for technical details.",
+            "human_title": "Unrecognised " + ("Error" if issue_type == "ERROR" else "Warning"),
+            "human_action": "Not a known FS25 problem. The original message is shown above.",
             "raw_line": raw_line.strip(),
-            # Compatibility with the requested schema wording.
-            "human_msg": "Unknown Error or Warning detected.",
+            "human_msg": detail or "Unknown issue detected.",
             "raw": raw_line.strip(),
+        }
+
+    def summarize(self) -> dict[str, object]:
+        """Group identical problems and count them by severity.
+
+        FS25 logs repeat the same mod failure on every load, so the raw entry
+        list is mostly duplicates. Callers want "this happened 12 times", not
+        twelve identical cards.
+        """
+        entries = self.parse_log()
+        issues = [e for e in entries if e.get("type") in ("ERROR", "WARNING")]
+
+        grouped: dict[tuple, dict] = {}
+        for entry in issues:
+            key = (entry.get("type"), entry.get("human_title"), entry.get("human_msg"))
+            if key in grouped:
+                grouped[key]["count"] += 1
+            else:
+                grouped[key] = dict(entry, count=1)
+
+        # Errors first, then the most frequent problems.
+        ordered = sorted(
+            grouped.values(),
+            key=lambda e: (e.get("type") != "ERROR", -e["count"]),
+        )
+        return {
+            "issues": ordered,
+            "errors": sum(1 for e in issues if e.get("type") == "ERROR"),
+            "warnings": sum(1 for e in issues if e.get("type") == "WARNING"),
+            "info_lines": [e.get("raw_line", "") for e in entries if e.get("type") == "INFO"],
+            "total_lines": len(entries),
         }
 
     def parse_log(self) -> list[dict[str, str]]:
